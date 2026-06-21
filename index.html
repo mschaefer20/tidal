@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f1020" />
+  <meta name="description" content="A simple, fast Snake game you can install as an app." />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="style.css" />
+  <title>Neon Snake</title>
+</head>
+<body>
+  <div id="app">
+    <header class="hud">
+      <div class="stat">
+        <span class="label">Score</span>
+        <span id="score" class="value">0</span>
+      </div>
+      <h1 class="title">NEON&nbsp;SNAKE</h1>
+      <div class="stat">
+        <span class="label">Best</span>
+        <span id="best" class="value">0</span>
+      </div>
+    </header>
+
+    <div class="board-wrap">
+      <canvas id="board" width="400" height="400" aria-label="Game board"></canvas>
+
+      <div id="overlay" class="overlay">
+        <h2 id="overlay-title">Neon Snake</h2>
+        <p id="overlay-text">Eat the orbs. Don't bite yourself.</p>
+        <button id="start-btn" class="btn">Play</button>
+        <p class="hint">Arrows / WASD&nbsp;&bull;&nbsp;Swipe on touch</p>
+      </div>
+    </div>
+
+    <div class="touch-pad" aria-hidden="true">
+      <button class="dpad up" data-dir="up">&#9650;</button>
+      <div class="dpad-row">
+        <button class="dpad left" data-dir="left">&#9664;</button>
+        <button class="dpad down" data-dir="down">&#9660;</button>
+        <button class="dpad right" data-dir="right">&#9654;</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

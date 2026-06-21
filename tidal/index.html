@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#05060f" />
+  <meta name="description" content="Tidal — a one-button gravity game. Flip between two planets and survive." />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="style.css" />
+  <title>Tidal</title>
+</head>
+<body>
+  <div id="app">
+    <header class="hud">
+      <div class="stat">
+        <span class="label">Score</span>
+        <span id="score" class="value">0</span>
+      </div>
+      <h1 class="title">TIDAL</h1>
+      <div class="stat">
+        <span class="label">Best</span>
+        <span id="best" class="value">0</span>
+      </div>
+    </header>
+
+    <div class="board-wrap">
+      <canvas id="board" width="420" height="640" aria-label="Game board"></canvas>
+      <canvas id="board3d" aria-hidden="true"></canvas>
+
+      <button id="pause-btn" aria-label="Pause" title="Pause">&#10073;&#10073;</button>
+
+      <div id="shift-banner" aria-hidden="true">
+        <span class="big">ENTERING 3D</span>
+        <span class="small">LEVEL 100</span>
+      </div>
+
+      <!-- Title / main menu -->
+      <section id="screen-title" class="screen">
+        <h2 class="logo">TIDAL</h2>
+        <p class="tagline">One button. Two gravities.</p>
+        <button class="btn" data-action="play">Play</button>
+        <button class="btn ghost" data-action="howto">How to Play</button>
+        <button class="btn ghost" data-action="settings">Settings</button>
+      </section>
+
+      <!-- How to play -->
+      <section id="screen-howto" class="screen hidden">
+        <h2>How to Play</h2>
+        <ul class="howto">
+          <li><b>Tap</b> the screen (or <b>Space</b>) to flip which planet pulls you.</li>
+          <li>The orb swings like a pendulum — weave through the gaps.</li>
+          <li>Grab <b>gold coins</b> for bonus points.</li>
+          <li>Don't hit a wall or get pulled into a planet.</li>
+          <li>Reach <b>100</b> and the world breaks into 3D.</li>
+        </ul>
+        <button class="btn" data-action="back">Back</button>
+      </section>
+
+      <!-- Settings -->
+      <section id="screen-settings" class="screen hidden">
+        <h2>Settings</h2>
+        <div class="settings">
+          <button class="toggle" data-setting="sound"><span>Sound</span><i></i></button>
+          <button class="toggle" data-setting="music"><span>Music</span><i></i></button>
+          <button class="toggle" data-setting="haptics"><span>Haptics</span><i></i></button>
+          <button class="toggle" data-setting="reduceMotion"><span>Reduce Motion</span><i></i></button>
+        </div>
+        <button class="btn" data-action="back">Back</button>
+      </section>
+
+      <!-- In-game overlay: game over / pause -->
+      <div id="overlay" class="overlay hidden">
+        <h2 id="overlay-title">Paused</h2>
+        <p id="overlay-text"></p>
+        <button id="start-btn" class="btn">Resume</button>
+        <button id="menu-btn" class="btn ghost">Menu</button>
+      </div>
+    </div>
+
+    <p class="footer-hint">Swing through the gaps &bull; grab coins for bonus</p>
+  </div>
+
+  <script src="fx.js"></script>
+  <!-- Map the bare "three" specifier used by the vendored add-ons. -->
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.js" } }
+  </script>
+  <script type="module" src="three3d.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Capacitor / iOS native build output
+ios/App/Pods/
+ios/App/build/
+ios/App/App/public/
+DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# macOS / misc
+.DS_Store
+*.log
+npm-debug.log*
+
+# Build artifacts
+*.ipa
+*.dSYM.zip
+build/

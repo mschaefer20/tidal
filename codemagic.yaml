@@ -1,0 +1,59 @@
+# Codemagic CI config — builds & ships Tidal (Capacitor) to TestFlight/App Store
+# WITHOUT needing a Mac on your end.
+#
+# Before the first run, in the Codemagic UI:
+#  1. Connect this repository.
+#  2. Add an App Store Connect API key integration (Teams → Integrations → App
+#     Store Connect). Note the key reference name and put it below as
+#     APP_STORE_CONNECT_KEY / the `app_store_connect` block.
+#  3. Set BUNDLE_ID below to match `appId` in capacitor.config.json.
+#  4. iOS automatic code signing will create/fetch the signing certs for you.
+
+workflows:
+  ios-tidal:
+    name: Tidal iOS
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      vars:
+        BUNDLE_ID: "com.example.tidal"      # <-- change to your appId
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+      node: 20
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: "com.example.tidal"   # <-- same as BUNDLE_ID
+    scripts:
+      - name: Install npm dependencies
+        script: npm install
+      - name: Add iOS platform (if not committed)
+        script: |
+          if [ ! -d "ios" ]; then npx cap add ios; fi
+      - name: Sync web assets + plugins into the native project
+        script: npx cap sync ios
+      - name: Generate app icon & splash
+        script: npx capacitor-assets generate --ios || true
+      - name: Install CocoaPods
+        script: |
+          cd ios/App && pod install
+      - name: Set build number
+        script: |
+          cd ios/App
+          agvtool new-version -all $(($BUILD_NUMBER + 1))
+      - name: Apply signing
+        script: xcode-project use-profiles
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration          # uses the App Store Connect API key integration
+        submit_to_testflight: true
+        # submit_to_app_store: false   # flip to true once you're ready to release

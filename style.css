@@ -1,0 +1,128 @@
+:root {
+  --bg: #0f1020;
+  --panel: #1a1b34;
+  --accent: #39ff14;
+  --accent-2: #00e5ff;
+  --food: #ff2d75;
+  --text: #e8e9f3;
+  --muted: #8a8cb0;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+#app {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+}
+
+.hud {
+  width: min(92vw, 400px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.title {
+  font-size: clamp(18px, 5vw, 26px);
+  letter-spacing: 3px;
+  font-weight: 800;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  white-space: nowrap;
+}
+
+.stat { display: flex; flex-direction: column; align-items: center; min-width: 56px; }
+.label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.value { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.board-wrap {
+  position: relative;
+  width: min(92vw, 400px);
+  aspect-ratio: 1 / 1;
+}
+
+#board {
+  width: 100%;
+  height: 100%;
+  background: var(--panel);
+  border-radius: 16px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 12px 40px rgba(0,0,0,0.5);
+  touch-action: none;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 24px;
+  background: rgba(15, 16, 32, 0.82);
+  backdrop-filter: blur(4px);
+  border-radius: 16px;
+  transition: opacity 0.2s ease;
+}
+.overlay.hidden { opacity: 0; pointer-events: none; }
+.overlay h2 { font-size: clamp(22px, 6vw, 30px); }
+.overlay p { color: var(--muted); max-width: 80%; }
+.hint { font-size: 12px; }
+
+.btn {
+  margin-top: 6px;
+  padding: 12px 32px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #06140a;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.08s ease, filter 0.15s ease;
+}
+.btn:active { transform: scale(0.96); filter: brightness(1.1); }
+
+.touch-pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.dpad-row { display: flex; gap: 8px; }
+.dpad {
+  width: 58px;
+  height: 58px;
+  font-size: 20px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  cursor: pointer;
+}
+.dpad:active { background: #25264a; }
+
+/* Touch controls only matter on coarse pointers */
+@media (pointer: fine) {
+  .touch-pad { display: none; }
+}

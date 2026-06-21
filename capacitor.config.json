@@ -1,0 +1,17 @@
+{
+  "appId": "com.example.tidal",
+  "appName": "Tidal",
+  "webDir": "tidal",
+  "backgroundColor": "#05060f",
+  "ios": {
+    "backgroundColor": "#05060f",
+    "contentInset": "never"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "backgroundColor": "#05060f",
+      "showSpinner": false
+    }
+  }
+}

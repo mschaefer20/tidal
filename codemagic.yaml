@@ -16,7 +16,7 @@ workflows:
     max_build_duration: 60
     environment:
       vars:
-        BUNDLE_ID: "com.example.tidal"      # <-- change to your appId
+        BUNDLE_ID: "com.mschaefer20.tidal"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
       node: 20
@@ -24,7 +24,7 @@ workflows:
       cocoapods: default
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: "com.example.tidal"   # <-- same as BUNDLE_ID
+        bundle_identifier: "com.mschaefer20.tidal"
     scripts:
       - name: Install npm dependencies
         script: npm install

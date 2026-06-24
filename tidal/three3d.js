@@ -28,6 +28,8 @@ let renderer, scene, camera, composer, bloom;
 let orbMesh, orbLight, leftLight, rightLight;
 let floorGrid, ceilGrid;
 let wellL, wellR, pullLine;   // Orbital 4: visible gravity wells + pull line
+const UP = new THREE.Vector3(0, 1, 0);
+const _dir = new THREE.Vector3();
 let barPool = [], bonusPool = [];
 let toonMap;
 let inited = false;
@@ -257,9 +259,9 @@ const api = {
     wellR = new THREE.Mesh(wellGeo, new THREE.MeshStandardMaterial({ color: 0x0a2230, emissive: 0x4dd2ff, emissiveIntensity: 1.0 }));
     wellL.visible = wellR.visible = false;
     scene.add(wellL, wellR);
-    const lineGeo = new THREE.BufferGeometry();
-    lineGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
-    pullLine = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 }));
+    // bold pull "beam" (a thin cylinder so it has real thickness + bloom)
+    const beamGeo = new THREE.CylinderGeometry(0.12, 0.12, 1, 10);
+    pullLine = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 }));
     pullLine.visible = false;
     scene.add(pullLine);
 
@@ -327,10 +329,12 @@ const api = {
       wellL.material.emissiveIntensity = s.gravSide < 0 ? 2.0 : 0.55;
       wellR.material.emissiveIntensity = s.gravSide > 0 ? 2.0 : 0.55;
       const ax = s.gravSide > 0 ? rx : lx, ay = s.gravSide > 0 ? ry : ly;
-      const p = pullLine.geometry.attributes.position;
-      p.setXYZ(0, s.orbNX * HALFW, (s.orbNY || 0) * FY, 0);
-      p.setXYZ(1, ax, ay, 0);
-      p.needsUpdate = true;
+      const ox = s.orbNX * HALFW, oy = (s.orbNY || 0) * FY;
+      const dx2 = ax - ox, dy2 = ay - oy;
+      const dlen = Math.hypot(dx2, dy2) || 0.001;
+      pullLine.position.set((ox + ax) / 2, (oy + ay) / 2, 0);
+      pullLine.scale.set(1, dlen, 1);
+      pullLine.quaternion.setFromUnitVectors(UP, _dir.set(dx2 / dlen, dy2 / dlen, 0));
       pullLine.material.color.set(s.gravSide > 0 ? 0x4dd2ff : 0xff5e7e);
       pullLine.visible = true;
     } else if (wellL) {

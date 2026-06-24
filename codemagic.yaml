@@ -14,6 +14,10 @@ workflows:
     name: Tidal iOS
     instance_type: mac_mini_m2
     max_build_duration: 60
+    integrations:
+      # Must match the App Store Connect API key name you add in
+      # Codemagic → Teams → Integrations → App Store Connect.
+      app_store_connect: "Tidal ASC Key"
     environment:
       vars:
         BUNDLE_ID: "com.mschaefer20.tidal"

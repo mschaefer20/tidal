@@ -138,7 +138,7 @@
   function build3DField() {
     bars = [];
     bonuses = [];
-    for (let d = 5; d <= D_SPAWN; d += DEPTH_SPACING) spawnBar3D(d);
+    for (let d = 7; d <= D_SPAWN; d += DEPTH_SPACING) spawnBar3D(d);
   }
 
   // Switch an in-progress 2D run into the 3D world.
@@ -324,9 +324,9 @@
   function update3D(dt) {
     depthSpeed = Math.min(DEPTH_SPEED_MAX, depthSpeed + DEPTH_ACCEL * dt);
 
-    // Hold the orb dead-center for the first ~1s of the 3D intro, then release
-    // it to gravity — a beat to orient before it starts drifting.
-    if (intro < 0.25) {
+    // Hold the orb dead-center for the first ~2.4s of the 3D intro, then release
+    // it to gravity — a clear beat to see it before it starts drifting.
+    if (intro < 0.6) {
       orb.x = W / 2;
       orb.vx = 0;
       orb.trail.push(orb.x);

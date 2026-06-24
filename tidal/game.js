@@ -324,7 +324,16 @@
   function update3D(dt) {
     depthSpeed = Math.min(DEPTH_SPEED_MAX, depthSpeed + DEPTH_ACCEL * dt);
 
-    if (!stepOrb(dt)) return die();
+    // Hold the orb dead-center for the first ~1s of the 3D intro, then release
+    // it to gravity — a beat to orient before it starts drifting.
+    if (intro < 0.25) {
+      orb.x = W / 2;
+      orb.vx = 0;
+      orb.trail.push(orb.x);
+      if (orb.trail.length > 14) orb.trail.shift();
+    } else if (!stepOrb(dt)) {
+      return die();
+    }
 
     // Ease the tunnel into motion during the lead-in: nearly still at first,
     // ramping to full speed as the camera settles (intro 0→1).

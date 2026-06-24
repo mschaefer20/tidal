@@ -51,6 +51,8 @@ workflows:
           /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" "$PLIST" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIRequiresFullScreen bool true" "$PLIST" \
             || /usr/libexec/PlistBuddy -c "Set :UIRequiresFullScreen true" "$PLIST"
+      - name: Configure audio session (play through the mute switch)
+        script: node ci/configure-audio.js
       - name: Generate app icon & splash
         script: npx capacitor-assets generate --ios || true
       - name: Install CocoaPods

@@ -40,7 +40,7 @@
     { n: 2, dim: "3d", threshold: FAST_ORBITALS ? 5 : 100 },
     { n: 3, dim: "2d", threshold: FAST_ORBITALS ? 10 : 250 },
     { n: 4, dim: "3d", threshold: FAST_ORBITALS ? 15 : 450 },
-    { n: 5, dim: "3d", threshold: FAST_ORBITALS ? 20 : 700 },
+    { n: 5, dim: "2d", threshold: FAST_ORBITALS ? 20 : 700 },  // black-hole survival arena
   ];
   const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V"];
 
@@ -62,10 +62,17 @@
   const GAP_DRIFT_AMP = 70;          // how far a gap slides from its base
   const GAP_DRIFT_FREQ = 0.55;       // slide speed (vs world travel)
   const O4_SPEED_MULT = 1.25;        // extra tunnel speed at orbital 4
-  const O5_SPEED_MULT = 1.45;        // extra tunnel speed at the boss
 
-  // Orbital 5 "Event Horizon" boss: a wandering lateral drag from the black hole.
-  const BH_PULL = 1100;
+  // ---- Orbital 5 "Event Horizon": top-down survival arena around a black hole
+  const ARENA = { x: W / 2, y: H * 0.46, rEvent: 30, rArena: 196 };
+  const ARENA_G = 1000;              // radial accel (a tap flips attract <-> repel)
+  const ARENA_MAXV = 470;            // 2D speed cap
+  const ARENA_DEBRIS = 5;            // starting debris count
+  const SURGE_EVERY = 6;             // seconds between gravity-surge attacks
+  const SURGE_CHARGE = 0.8;          // telegraph time before a surge
+  const SURGE_ACTIVE = 1.4;          // surge duration
+  const SURGE_MULT = 1.9;            // gravity multiplier during a surge
+  const TAU = Math.PI * 2;
 
   // ---- Orbital 3 "Binary" tunables (2D multi-gravity) ----------------------
   // Two planets offset diagonally so the pull is 2D: left tugs up-left,
@@ -137,6 +144,7 @@
   let orb, gravSide, bars, bonuses, scroll, score, running, lastT, rafId, shake, paused;
   let mode, depthSpeed, flash, intro, travel, orbital;
   let g3Time, gpL, gpR;   // Orbital 3: oscillation clock + live planet positions
+  let arenaTime, scoreClock, debris, coins, surge, nextSurge;   // Orbital 5 arena
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
 
   const BEST_KEY = "tidal-best";
@@ -171,6 +179,8 @@
     g3Time = 0;
     gpL = { x: G3_LEFT.x, y: G3_LEFT.y };
     gpR = { x: G3_RIGHT.x, y: G3_RIGHT.y };
+    arenaTime = 0; scoreClock = 0; surge = null; nextSurge = SURGE_EVERY;
+    debris = []; coins = [];
     if (mode === "3d") build3DField(); else { hide3D(); build2DField(); }
     if (window.TidalFX) TidalFX.setOrbital(orbital);
     scoreEl.textContent = score;
@@ -211,7 +221,7 @@
     } else {
       intro = 1;
       hide3D();
-      build2DField();
+      if (n === 5) buildArena(); else build2DField();
     }
     if (window.TidalFX) TidalFX.setOrbital(n);
     playShiftBanner(n);
@@ -328,6 +338,7 @@
   function update(dt) {
     if (flash > 0) flash = Math.max(0, flash - dt * 1.6);
     if (mode === "3d") return update3D(dt);
+    if (orbital === 5) return updateArena(dt);
     if (orbital === 3) return updateBinary(dt);
     return update2D(dt);
   }
@@ -472,10 +483,110 @@
     }
   }
 
+  // ---- Orbital 5 "Event Horizon": survival arena ---------------------------
+  function spawnDebris() {
+    debris.push({
+      ang: Math.random() * TAU,
+      r: 70 + Math.random() * 105,
+      spd: (Math.random() < 0.5 ? -1 : 1) * (0.4 + Math.random() * 0.8),
+      size: 9 + Math.random() * 8,
+    });
+  }
+  function spawnCoin(c) {
+    const o = c || {};
+    o.ang = Math.random() * TAU;
+    o.r = 70 + Math.random() * 105;
+    o.spd = (Math.random() < 0.5 ? -1 : 1) * 0.6;
+    o.taken = false;
+    o.respawn = 0;
+    if (!c) coins.push(o);
+  }
+  function buildArena() {
+    arenaTime = 0; scoreClock = 0; surge = null; nextSurge = SURGE_EVERY;
+    orb.x = ARENA.x; orb.y = ARENA.y - 115;
+    orb.vx = 340; orb.vy = 0;     // ~circular orbit velocity: sqrt(ARENA_G * r)
+    orb.trail = [];
+    gravSide = 1;                 // start by attracting
+    debris = []; for (let i = 0; i < ARENA_DEBRIS; i++) spawnDebris();
+    coins = []; for (let i = 0; i < 3; i++) spawnCoin();
+  }
+
+  function updateArena(dt) {
+    const fromOrbital = orbital;
+    arenaTime += dt;
+
+    // boss attack: scheduled gravity surges (telegraphed, then strong inward pull)
+    nextSurge -= dt;
+    if (!surge && nextSurge <= 0) surge = { phase: "charge", t: SURGE_CHARGE };
+    let gMult = 1;
+    if (surge) {
+      surge.t -= dt;
+      if (surge.phase === "charge") {
+        if (surge.t <= 0) { surge.phase = "active"; surge.t = SURGE_ACTIVE; }
+      } else {
+        gMult = SURGE_MULT;
+        if (surge.t <= 0) { surge = null; nextSurge = Math.max(3.5, SURGE_EVERY - arenaTime * 0.04); }
+      }
+    }
+
+    // radial attract / repel toward the black hole
+    const dx = orb.x - ARENA.x, dy = orb.y - ARENA.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const ux = dx / dist, uy = dy / dist;        // outward unit vector
+    const sign = gravSide > 0 ? -1 : 1;          // attract = inward
+    const g = ARENA_G * gMult;
+    orb.vx += ux * g * sign * dt;
+    orb.vy += uy * g * sign * dt;
+    const sp = Math.hypot(orb.vx, orb.vy);
+    if (sp > ARENA_MAXV) { orb.vx *= ARENA_MAXV / sp; orb.vy *= ARENA_MAXV / sp; }
+    orb.x += orb.vx * dt;
+    orb.y += orb.vy * dt;
+
+    orb.trail.push({ x: orb.x, y: orb.y });
+    if (orb.trail.length > 22) orb.trail.shift();
+    if (shake > 0) shake = Math.max(0, shake - dt * 60);
+
+    // death: consumed by the hole, or flung out of the arena
+    const r = Math.hypot(orb.x - ARENA.x, orb.y - ARENA.y);
+    if (r <= ARENA.rEvent + ORB_R * 0.3 || r >= ARENA.rArena) return die();
+
+    // orbiting debris
+    for (const d of debris) {
+      d.ang += d.spd * dt;
+      const ex = ARENA.x + Math.cos(d.ang) * d.r, ey = ARENA.y + Math.sin(d.ang) * d.r;
+      const a = ex - orb.x, b = ey - orb.y;
+      if (a * a + b * b < (ORB_R + d.size) * (ORB_R + d.size)) return die();
+    }
+
+    // orbiting coins (respawn after being collected)
+    for (const c of coins) {
+      c.ang += c.spd * dt;
+      if (c.taken) { c.respawn -= dt; if (c.respawn <= 0) spawnCoin(c); continue; }
+      const ex = ARENA.x + Math.cos(c.ang) * c.r, ey = ARENA.y + Math.sin(c.ang) * c.r;
+      const a = ex - orb.x, b = ey - orb.y;
+      if (a * a + b * b < (ORB_R + 8) * (ORB_R + 8)) {
+        c.taken = true; c.respawn = 2.5;
+        addScore(5); sfx("coin"); buzz("light");
+        if (orbital !== fromOrbital) return;
+      }
+    }
+
+    // survival scoring
+    scoreClock += dt;
+    while (scoreClock >= 0.5) {
+      scoreClock -= 0.5;
+      addScore(1);
+      if (orbital !== fromOrbital) return;
+    }
+
+    // slowly escalate the debris field
+    if (debris.length < ARENA_DEBRIS + Math.floor(arenaTime / 12) && debris.length < 11) spawnDebris();
+  }
+
   // ---- 3D simulation -------------------------------------------------------
   function update3D(dt) {
     const fromOrbital = orbital;
-    const speedCap = DEPTH_SPEED_MAX * (orbital >= 5 ? O5_SPEED_MULT : orbital >= 4 ? O4_SPEED_MULT : 1);
+    const speedCap = DEPTH_SPEED_MAX * (orbital >= 4 ? O4_SPEED_MULT : 1);
     depthSpeed = Math.min(speedCap, depthSpeed + DEPTH_ACCEL * dt);
 
     // Hold the orb dead-center for the first ~2.4s of the 3D intro, then release
@@ -485,12 +596,8 @@
       orb.vx = 0;
       orb.trail.push({ x: orb.x, y: orb.y });
       if (orb.trail.length > 14) orb.trail.shift();
-    } else {
-      if (orbital === 5) {   // the black hole drags you sideways — fight it
-        const drag = BH_PULL * (0.6 * Math.sin(travel * 0.5) + 0.4 * Math.sin(travel * 1.1));
-        orb.vx += drag * dt;
-      }
-      if (!stepOrb(dt)) return die();
+    } else if (!stepOrb(dt)) {
+      return die();
     }
 
     // Ease the tunnel into motion during the lead-in: nearly still at first,
@@ -547,6 +654,8 @@
     if (mode === "3d") {
       if (engine3D) drawWarpUnderlay();   // speed-lines behind the fading WebGL layer
       else draw3D();                       // canvas fallback
+    } else if (orbital === 5) {
+      drawArena();
     } else if (orbital === 3) {
       drawBinary();
     } else {
@@ -657,6 +766,72 @@
       ctx.stroke();
     }
     ctx.restore();
+  }
+
+  // ---- Orbital 5 rendering: the black-hole arena ---------------------------
+  function drawArena() {
+    const cx = ARENA.x, cy = ARENA.y;
+    const charging = surge && surge.phase === "charge";
+    const active = surge && surge.phase === "active";
+
+    // arena boundary (deadly outer edge)
+    ctx.strokeStyle = "rgba(255,80,90,0.22)";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, ARENA.rArena, 0, TAU); ctx.stroke();
+
+    // accretion glow (brightens while a surge charges / fires)
+    const glowR = ARENA.rEvent * (active ? 3.6 : charging ? 2.6 + Math.sin(arenaTime * 22) * 0.5 : 2.2);
+    const grd = ctx.createRadialGradient(cx, cy, ARENA.rEvent * 0.5, cx, cy, glowR);
+    grd.addColorStop(0, active ? "rgba(255,120,40,0.95)" : "rgba(255,140,60,0.7)");
+    grd.addColorStop(1, "rgba(255,80,30,0)");
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(cx, cy, glowR, 0, TAU); ctx.fill();
+
+    // photon ring + event horizon
+    ctx.strokeStyle = "rgba(255,232,205,0.9)"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, ARENA.rEvent * 1.08, 0, TAU); ctx.stroke();
+    ctx.fillStyle = "#000";
+    ctx.beginPath(); ctx.arc(cx, cy, ARENA.rEvent, 0, TAU); ctx.fill();
+
+    // debris
+    ctx.fillStyle = "#8a8398";
+    for (const d of debris) {
+      const ex = cx + Math.cos(d.ang) * d.r, ey = cy + Math.sin(d.ang) * d.r;
+      ctx.beginPath(); ctx.arc(ex, ey, d.size, 0, TAU); ctx.fill();
+    }
+
+    // coins
+    for (const c of coins) {
+      if (c.taken) continue;
+      glowCircle(cx + Math.cos(c.ang) * c.r, cy + Math.sin(c.ang) * c.r, 7, "#ffd84d");
+    }
+
+    // pull / repel indicator (toward or away from the hole)
+    const color = gravSide > 0 ? "#4dd2ff" : "#ff5e7e";
+    const ux = orb.x - cx, uy = orb.y - cy;
+    const ul = Math.hypot(ux, uy) || 1;
+    const reach = gravSide > 0 ? -22 : 22;   // inward when attracting
+    ctx.strokeStyle = gravSide > 0 ? "rgba(77,210,255,0.4)" : "rgba(255,94,126,0.4)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(orb.x, orb.y);
+    ctx.lineTo(orb.x + (ux / ul) * reach, orb.y + (uy / ul) * reach);
+    ctx.stroke();
+
+    // orb trail + orb
+    for (let i = 0; i < orb.trail.length; i++) {
+      const a = (i + 1) / orb.trail.length;
+      ctx.globalAlpha = a * 0.4;
+      glowCircle(orb.trail[i].x, orb.trail[i].y, ORB_R * (0.4 + a * 0.5), color);
+    }
+    ctx.globalAlpha = 1;
+    glowCircle(orb.x, orb.y, ORB_R, color, true);
+
+    // surge screen tint
+    if (active) {
+      ctx.fillStyle = "rgba(255,60,30,0.10)";
+      ctx.fillRect(0, 0, W, H);
+    }
   }
 
   // ---- 3D rendering: a tunnel rushing toward the camera --------------------
@@ -882,8 +1057,10 @@
     gravSide *= -1;
     // Shed some momentum on flip so the reversal registers immediately,
     // making the back-and-forth feel reactive rather than floaty.
-    orb.vx *= 0.55;
-    orb.vy *= 0.55;          // shed vertical momentum too (Orbital 3)
+    if (orbital !== 5) {     // arena keeps orbital momentum; only flips the pull
+      orb.vx *= 0.55;
+      orb.vy *= 0.55;
+    }
     sfx("flip");
     buzz("light");
   }

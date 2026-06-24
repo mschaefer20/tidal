@@ -41,9 +41,9 @@
     { n: 4, dim: "3d" },   // 3D binary tunnel
     { n: 5, dim: "2d" },   // black-hole survival arena
   ];
-  // Score to reach orbital n. Dev mode spaces them 10 apart (10/20/30/40);
+  // Score to reach orbital n. Dev mode spaces them 7 apart (7/14/21/28);
   // regular mode 100 apart (100/200/300/400).
-  function orbitalThreshold(n) { return n <= 1 ? 0 : (devMode ? 10 : 100) * (n - 1); }
+  function orbitalThreshold(n) { return n <= 1 ? 0 : (devMode ? 7 : 100) * (n - 1); }
   const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V"];
 
   // Global pace. NORMAL is the shipped play speed (75% of the old baseline).
@@ -147,7 +147,8 @@
 
   // ---- State ---------------------------------------------------------------
   let orb, gravSide, bars, bonuses, scroll, score, running, lastT, rafId, shake, paused;
-  let mode, depthSpeed, flash, intro, travel, orbital;
+  let mode, depthSpeed, flash, intro, travel, orbital, countdown;
+  const COUNTDOWN_TIME = 3.0;   // wait + 3-2-1 before each new orbital (2-5)
   let g3Time, gpL, gpR;   // Orbital 3: oscillation clock + live planet positions
   let arenaTime, scoreClock, debris, coins, surge, nextSurge, nextDebris, escaped;   // Orbital 5 arena
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
@@ -184,6 +185,7 @@
     orbital = mode === "3d" ? 2 : 1;
     intro = mode === "3d" ? 0 : 1;
     depthSpeed = DEPTH_SPEED_START;
+    countdown = 0;
     g3Time = 0;
     gpL = { x: G3_LEFT.x, y: G3_LEFT.y };
     gpR = { x: G3_RIGHT.x, y: G3_RIGHT.y };
@@ -214,6 +216,7 @@
     orbital = n;
     mode = ORBITALS[n - 1].dim;
     flash = settings.reduceMotion ? 0.25 : 1;
+    countdown = COUNTDOWN_TIME;   // wait + countdown before the new orbital begins
     // clean, centered start for the new orbital
     orb.x = W / 2;
     orb.y = n === 3 ? H / 2 : ORB_Y;
@@ -1068,9 +1071,36 @@
     // transition fly-in / intro runs on real time (independent of slow-mo)
     if (mode === "3d" && intro < 1) intro = Math.min(1, intro + dt / 4.0);
     else if (orbital === 5 && intro < 1) intro = Math.min(1, intro + dt / 2.0);
+
+    // Countdown before a new orbital: freeze gameplay, let the intro/camera
+    // play, show 3-2-1, then release into play.
+    if (countdown > 0) {
+      countdown = Math.max(0, countdown - dt);
+      updateCountdownUI();
+      draw();
+      rafId = requestAnimationFrame(loop);
+      return;
+    }
+    updateCountdownUI();
+
     update(dt * timeScale);       // global pace multiplier
     if (running) draw();
     rafId = requestAnimationFrame(loop);
+  }
+
+  let lastCd = -1;
+  function updateCountdownUI() {
+    const el = document.getElementById("countdown");
+    if (!el) return;
+    const n = countdown > 0 ? Math.ceil(countdown) : 0;
+    if (n === lastCd) return;
+    lastCd = n;
+    if (n > 0) {
+      el.textContent = n;
+      el.classList.remove("show"); void el.offsetWidth; el.classList.add("show");
+    } else {
+      el.classList.remove("show");
+    }
   }
 
   function start() {
@@ -1155,7 +1185,7 @@
 
   // ---- Input ---------------------------------------------------------------
   function flip() {
-    if (!running) return;
+    if (!running || countdown > 0) return;   // can't steer during the countdown
     gravSide *= -1;
     // Shed some momentum on flip so the reversal registers immediately,
     // making the back-and-forth feel reactive rather than floaty.

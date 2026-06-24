@@ -9,6 +9,12 @@
   "use strict";
 
   const LEADERBOARD_ID = "tidal_high_scores";
+
+  // v1.0 ships WITHOUT Game Center (needs the entitlement + profile work).
+  // Flip to true for v1.1 once Game Center is enabled on the App ID and the
+  // provisioning profile is regenerated to include it.
+  const ENABLED = false;
+
   let signedIn = false;
 
   function plugin() {
@@ -17,9 +23,10 @@
       && window.Capacitor.Plugins.CapacitorGameConnect;
   }
 
-  function available() { return !!plugin(); }
+  function available() { return ENABLED && !!plugin(); }
 
   async function signIn() {
+    if (!ENABLED) return false;
     const p = plugin();
     if (!p) return false;
     try { await p.signIn(); signedIn = true; }
@@ -28,6 +35,7 @@
   }
 
   async function submit(score) {
+    if (!ENABLED) return;
     const p = plugin();
     if (!p || score <= 0) return;
     try {
@@ -37,6 +45,7 @@
   }
 
   async function show() {
+    if (!ENABLED) return;
     const p = plugin();
     if (!p) return;
     try {
@@ -48,5 +57,5 @@
   window.TidalGC = { available, signIn, submit, show, LEADERBOARD_ID };
 
   // Sign in early (silently) so scores can post on the first game over.
-  document.addEventListener("DOMContentLoaded", () => { signIn(); });
+  document.addEventListener("DOMContentLoaded", () => { if (ENABLED) signIn(); });
 })();

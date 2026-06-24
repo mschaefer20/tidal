@@ -37,9 +37,10 @@
 
       <!-- Title / main menu -->
       <section id="screen-title" class="screen">
-        <h2 class="logo">TIDAL</h2>
+        <h2 class="logo" id="title-logo">TIDAL</h2>
         <p class="tagline">One button. Two gravities.</p>
         <button class="btn" data-action="play">Play</button>
+        <button class="btn ghost" data-action="leaderboard" id="lb-title" hidden>Leaderboard</button>
         <button class="btn ghost" data-action="howto">How to Play</button>
         <button class="btn ghost" data-action="settings">Settings</button>
       </section>
@@ -74,6 +75,7 @@
         <h2 id="overlay-title">Paused</h2>
         <p id="overlay-text"></p>
         <button id="start-btn" class="btn">Resume</button>
+        <button id="lb-over" class="btn ghost" hidden>Leaderboard</button>
         <button id="menu-btn" class="btn ghost">Menu</button>
       </div>
     </div>
@@ -82,6 +84,7 @@
   </div>
 
   <script src="fx.js"></script>
+  <script src="gamecenter.js"></script>
   <!-- Map the bare "three" specifier used by the vendored add-ons. -->
   <script type="importmap">
     { "imports": { "three": "./vendor/three.module.js" } }

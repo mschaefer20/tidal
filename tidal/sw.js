@@ -1,11 +1,12 @@
 /* Minimal offline cache so Tidal is installable and works without a network. */
-const CACHE = "tidal-v4";
+const CACHE = "tidal-v5";
 const ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./game.js",
   "./fx.js",
+  "./gamecenter.js",
   "./three3d.js",
   "./manifest.json",
   "./icons/icon-192.png",

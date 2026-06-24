@@ -29,7 +29,8 @@
   const BAR_SPACING = 230;           // vertical distance between barriers
 
   // Score at which the world transforms into the 3D mode.
-  const SHIFT_SCORE = 100;
+  // ⚠️ TEMP: lowered to 5 for testing — SET BACK TO 100 BEFORE PUBLIC RELEASE.
+  const SHIFT_SCORE = 5;
 
   // Global pace. NORMAL is the shipped play speed (75% of the old baseline).
   // DEV_SLOW is a toggleable slow-motion for development/testing.
@@ -628,6 +629,7 @@
       localStorage.setItem(BEST_KEY, String(best));
       bestEl.textContent = best;
     }
+    if (window.TidalGC) TidalGC.submit(score);   // post to Game Center leaderboard
     overlayTitle.textContent = "Game Over";
     overlayText.textContent = `Score ${score}${score >= best && score > 0 ? " — new best!" : ""}`;
     startBtn.textContent = "Play again";
@@ -700,8 +702,33 @@
       else if (a === "howto") showScreen("howto");
       else if (a === "settings") { refreshToggles(); showScreen("settings"); }
       else if (a === "back") showScreen("title");
+      else if (a === "leaderboard") { if (window.TidalGC) TidalGC.show(); }
     });
   });
+
+  // Leaderboard button on the game-over / pause overlay
+  const lbOver = document.getElementById("lb-over");
+  if (lbOver) lbOver.addEventListener("click", (e) => { e.stopPropagation(); if (window.TidalGC) TidalGC.show(); });
+
+  // Reveal leaderboard buttons only where Game Center exists (the native app)
+  if (window.TidalGC && TidalGC.available()) {
+    const lbTitle = document.getElementById("lb-title");
+    if (lbTitle) lbTitle.hidden = false;
+    if (lbOver) lbOver.hidden = false;
+  }
+
+  // Hidden dev shortcut: tap the title logo 5× quickly to jump straight to 3D.
+  (() => {
+    const logo = document.getElementById("title-logo");
+    if (!logo) return;
+    let taps = 0, last = 0;
+    logo.addEventListener("click", () => {
+      const now = performance.now();
+      taps = now - last < 800 ? taps + 1 : 1;
+      last = now;
+      if (taps >= 5) { taps = 0; reset("3d"); resume(); }
+    });
+  })();
 
   // Settings toggles
   document.querySelectorAll(".toggle").forEach((t) => {

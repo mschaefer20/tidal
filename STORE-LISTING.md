@@ -3,7 +3,7 @@
 Draft text to paste into App Store Connect. Tweak to taste.
 
 ## App name (30 char max)
-`Tidal: One-Button Gravity`
+`Tidal Orbit`  (registered)
 
 ## Subtitle (30 char max)
 `Flip gravity. Survive. Go 3D.`

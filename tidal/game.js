@@ -577,7 +577,7 @@
     lastT = now;
     if (dt > 0.05) dt = 0.05;     // clamp after tab-switch / hitch
     // transition fly-in runs on real time (independent of slow-mo)
-    if (mode === "3d" && intro < 1) intro = Math.min(1, intro + dt / 2.2);
+    if (mode === "3d" && intro < 1) intro = Math.min(1, intro + dt / 4.0);
     update(dt * timeScale);       // global pace multiplier
     if (running) draw();
     rafId = requestAnimationFrame(loop);
@@ -687,6 +687,9 @@
   }
   document.addEventListener("pointerdown", unlockAudio);
   document.addEventListener("keydown", unlockAudio);
+
+  // Lock the page: stop the WebView from scrolling/panning on swipes.
+  document.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
 
   canvas.addEventListener("pointerdown", onPress);
   startBtn.addEventListener("click", (e) => { e.stopPropagation(); primaryAction(); });

@@ -304,12 +304,13 @@ const api = {
     orbLight.color.copy(side);
     orbMesh.position.set(s.orbNX * HALFW, 0, 0);
 
-    // intro fly-in (gentler than before)
-    const e = 1 - Math.pow(1 - Math.min(1, s.intro), 3);
-    camera.position.z = (s.reduceMotion ? 16 : 30) - (s.reduceMotion ? 7 : 21) * e;
+    // intro fly-in — slow, cinematic rush from deep space into the tunnel
+    const ip = Math.min(1, s.intro);
+    const e = ip < 0.5 ? 4 * ip * ip * ip : 1 - Math.pow(-2 * ip + 2, 3) / 2; // easeInOutCubic
+    camera.position.z = (s.reduceMotion ? 16 : 54) - (s.reduceMotion ? 7 : 45) * e;
     camera.position.x = 0;           // locked: tunnel stays fixed, only the orb moves
     camera.lookAt(0, -0.3, -6);
-    bloom.strength = 0.32 + (s.reduceMotion ? 0 : (1 - e) * 0.5);   // extra glow only during the warp
+    bloom.strength = 0.32 + (s.reduceMotion ? 0 : (1 - e) * 0.8);   // extra glow during the warp
 
     const gz = (s.travel * DZ) % GS;
     floorGrid.position.z = gz;

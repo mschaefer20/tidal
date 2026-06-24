@@ -11,13 +11,18 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
+  position: fixed;        /* lock the page — no scrolling/panning in the app */
+  inset: 0;
+  width: 100%;
   height: 100%;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  touch-action: none;
   overscroll-behavior: none;
 }
 
@@ -78,7 +83,7 @@ html, body {
   background: #05060f;
   display: none;
   opacity: 0;
-  transition: opacity 0.7s ease;
+  transition: opacity 1.6s ease;   /* slow, cinematic crossfade into 3D */
   pointer-events: none;   /* taps pass through to the 2D canvas handler */
 }
 
@@ -94,7 +99,7 @@ html, body {
   pointer-events: none;
   opacity: 0;
 }
-#shift-banner.run { animation: shiftbanner 1.6s ease forwards; }
+#shift-banner.run { animation: shiftbanner 3.4s ease forwards; }
 #shift-banner .big {
   font-size: clamp(28px, 9vw, 46px);
   font-weight: 800;
@@ -108,10 +113,10 @@ html, body {
   color: #e0c4b0;
 }
 @keyframes shiftbanner {
-  0%   { opacity: 0; transform: scale(0.6); filter: blur(8px); }
-  25%  { opacity: 1; transform: scale(1); filter: blur(0); }
-  70%  { opacity: 1; transform: scale(1.05); }
-  100% { opacity: 0; transform: scale(1.4); filter: blur(6px); }
+  0%   { opacity: 0; transform: scale(0.7); filter: blur(8px); }
+  18%  { opacity: 1; transform: scale(1); filter: blur(0); }
+  80%  { opacity: 1; transform: scale(1.04); filter: blur(0); }
+  100% { opacity: 0; transform: scale(1.3); filter: blur(6px); }
 }
 
 .overlay {

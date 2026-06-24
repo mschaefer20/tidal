@@ -36,10 +36,21 @@ workflows:
           if [ ! -d "ios" ]; then npx cap add ios; fi
       - name: Sync web assets + plugins into the native project
         script: npx cap sync ios
-      - name: Declare encryption compliance (no custom encryption)
+      - name: Configure Info.plist (compliance + portrait lock)
         script: |
-          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" ios/App/App/Info.plist \
-            || /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" ios/App/App/Info.plist
+          PLIST=ios/App/App/Info.plist
+          # Encryption compliance (no custom encryption)
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST" \
+            || /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$PLIST"
+          # Lock to portrait on iPhone
+          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait" "$PLIST"
+          # Lock to portrait on iPad too
+          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:0 string UIInterfaceOrientationPortrait" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations~ipad:1 string UIInterfaceOrientationPortraitUpsideDown" "$PLIST"
       - name: Generate app icon & splash
         script: npx capacitor-assets generate --ios || true
       - name: Install CocoaPods

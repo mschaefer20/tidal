@@ -61,13 +61,16 @@
   // ---- Orbital 3 "Binary" tunables (2D multi-gravity) ----------------------
   // Two planets offset diagonally so the pull is 2D: left tugs up-left,
   // right tugs down-right → curved, two-axis motion. Top/bottom are deadly.
-  const G3_LEFT = { x: -0.10 * W, y: H * 0.28 };
-  const G3_RIGHT = { x: 1.10 * W, y: H * 0.72 };
+  const G3_LEFT = { x: -0.10 * W, y: H * 0.5 };   // both centered → equal vertical range
+  const G3_RIGHT = { x: 1.10 * W, y: H * 0.5 };
   const GRAVITY3 = 1650;             // directional accel toward the active planet
   const MAXV3 = 520;                 // 2D speed cap
   const Y_WALL = ORB_R + 8;          // deadly top/bottom margin
-  const G3_AMP = 90;                 // planet vertical oscillation amplitude
-  const G3_FREQ = 1.2;               // planet oscillation speed (rad/s)
+  const G3_AMP = 185;                // planet vertical sway amplitude (equal both sides)
+  // Three incommensurate frequencies → wandering, non-repeating oscillation.
+  const G3_FREQ = 1.2;
+  const G3_FREQ2 = 0.73;
+  const G3_FREQ3 = 0.31;
 
   const canvas = document.getElementById("board");
   const ctx = canvas.getContext("2d");
@@ -317,11 +320,17 @@
     const fromOrbital = orbital;
     scroll = Math.min(SCROLL_MAX, scroll + SCROLL_ACCEL * dt);
 
-    // oscillate the planets vertically, in opposite phase (shifting geometry)
+    // oscillate both planets over the same vertical range, but with a layered,
+    // non-repeating wander (and different phase per side, so they're independent)
     g3Time += dt;
-    const off = Math.sin(g3Time * G3_FREQ) * G3_AMP;
-    gpL.y = G3_LEFT.y + off;
-    gpR.y = G3_RIGHT.y - off;
+    const t = g3Time;
+    const sway = (ph) => G3_AMP * (
+      0.5 * Math.sin(t * G3_FREQ + ph) +
+      0.3 * Math.sin(t * G3_FREQ2 + ph * 1.7) +
+      0.2 * Math.sin(t * G3_FREQ3 + ph * 0.6)
+    );
+    gpL.y = G3_LEFT.y + sway(0);
+    gpR.y = G3_RIGHT.y + sway(2.4);
 
     // accelerate toward the active planet (a 2D direction → curved motion)
     const tp = gravSide > 0 ? gpR : gpL;

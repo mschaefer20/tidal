@@ -44,8 +44,6 @@ workflows:
         script: npx capacitor-assets generate --ios || true
       - name: Install CocoaPods
         script: cd ios/App && pod install
-      - name: Enable Game Center capability
-        script: node ci/enable-gamecenter.js
       - name: Fetch signing files & set up keychain (uses the API key)
         script: |
           keychain initialize

@@ -259,9 +259,19 @@ const api = {
     wellR = new THREE.Mesh(wellGeo, new THREE.MeshStandardMaterial({ color: 0x0a2230, emissive: 0x4dd2ff, emissiveIntensity: 1.0 }));
     wellL.visible = wellR.visible = false;
     scene.add(wellL, wellR);
-    // bold pull "beam" (a thin cylinder so it has real thickness + bloom)
-    const beamGeo = new THREE.CylinderGeometry(0.12, 0.12, 1, 10);
-    pullLine = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95 }));
+    // pull "beam": a thin bright white core inside a soft additive colour glow
+    // (bloom turns this into a lightsaber-like shaft)
+    pullLine = new THREE.Group();
+    const beamCore = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045, 0.045, 1, 8),
+      new THREE.MeshBasicMaterial({ color: 0xffffff })
+    );
+    const beamGlow = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.16, 1, 16),
+      new THREE.MeshBasicMaterial({ color: 0x4dd2ff, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    pullLine.add(beamCore, beamGlow);
+    pullLine.userData.glow = beamGlow.material;
     pullLine.visible = false;
     scene.add(pullLine);
 
@@ -335,7 +345,7 @@ const api = {
       pullLine.position.set((ox + ax) / 2, (oy + ay) / 2, 0);
       pullLine.scale.set(1, dlen, 1);
       pullLine.quaternion.setFromUnitVectors(UP, _dir.set(dx2 / dlen, dy2 / dlen, 0));
-      pullLine.material.color.set(s.gravSide > 0 ? 0x4dd2ff : 0xff5e7e);
+      pullLine.userData.glow.color.set(s.gravSide > 0 ? 0x4dd2ff : 0xff5e7e);
       pullLine.visible = true;
     } else if (wellL) {
       wellL.visible = wellR.visible = pullLine.visible = false;

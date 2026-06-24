@@ -66,6 +66,8 @@
   const GRAVITY3 = 1650;             // directional accel toward the active planet
   const MAXV3 = 520;                 // 2D speed cap
   const Y_WALL = ORB_R + 8;          // deadly top/bottom margin
+  const G3_AMP = 90;                 // planet vertical oscillation amplitude
+  const G3_FREQ = 1.2;               // planet oscillation speed (rad/s)
 
   const canvas = document.getElementById("board");
   const ctx = canvas.getContext("2d");
@@ -122,6 +124,7 @@
   // ---- State ---------------------------------------------------------------
   let orb, gravSide, bars, bonuses, scroll, score, running, lastT, rafId, shake, paused;
   let mode, depthSpeed, flash, intro, travel, orbital;
+  let g3Time, gpL, gpR;   // Orbital 3: oscillation clock + live planet positions
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
 
   const BEST_KEY = "tidal-best";
@@ -132,6 +135,8 @@
   // and ?slow to boot in dev slow-motion.
   const params = new URLSearchParams(location.search);
   const DEV_START_3D = params.has("3d") || params.get("mode") === "3d";
+  // Dev shortcut: ?orbital=N (1-5) boots every run straight into that Orbital.
+  const DEV_START_ORBITAL = Math.max(0, Math.min(5, Number(params.get("orbital")) || 0));
 
   // Persists across runs (it's a setting, not part of a game).
   let timeScale = params.has("slow") ? SPEED_DEV : SPEED_NORMAL;
@@ -151,6 +156,9 @@
     orbital = mode === "3d" ? 2 : 1;
     intro = mode === "3d" ? 0 : 1;
     depthSpeed = DEPTH_SPEED_START;
+    g3Time = 0;
+    gpL = { x: G3_LEFT.x, y: G3_LEFT.y };
+    gpR = { x: G3_RIGHT.x, y: G3_RIGHT.y };
     if (mode === "3d") build3DField(); else { hide3D(); build2DField(); }
     if (window.TidalFX) TidalFX.setOrbital(orbital);
     scoreEl.textContent = score;
@@ -181,6 +189,7 @@
     orb.y = n === 3 ? H / 2 : ORB_Y;
     orb.vx = 0;
     orb.vy = 0;
+    if (n === 3) g3Time = 0;
     if (mode === "3d") {
       depthSpeed = DEPTH_SPEED_START;
       intro = 0;
@@ -308,8 +317,14 @@
     const fromOrbital = orbital;
     scroll = Math.min(SCROLL_MAX, scroll + SCROLL_ACCEL * dt);
 
+    // oscillate the planets vertically, in opposite phase (shifting geometry)
+    g3Time += dt;
+    const off = Math.sin(g3Time * G3_FREQ) * G3_AMP;
+    gpL.y = G3_LEFT.y + off;
+    gpR.y = G3_RIGHT.y - off;
+
     // accelerate toward the active planet (a 2D direction → curved motion)
-    const tp = gravSide > 0 ? G3_RIGHT : G3_LEFT;
+    const tp = gravSide > 0 ? gpR : gpL;
     const dx = tp.x - orb.x, dy = tp.y - orb.y;
     const len = Math.hypot(dx, dy) || 1;
     orb.vx += (dx / len) * GRAVITY3 * dt;
@@ -554,12 +569,12 @@
     ctx.fillRect(0, 0, W, Y_WALL);
     ctx.fillRect(0, H - Y_WALL, W, Y_WALL);
 
-    // the two offset gravity planets (active one brighter)
-    planet(G3_LEFT.x, G3_LEFT.y, 150, "#ff5e7e", gravSide < 0);
-    planet(G3_RIGHT.x, G3_RIGHT.y, 150, "#4dd2ff", gravSide > 0);
+    // the two offset gravity planets (active one brighter), live oscillating y
+    planet(gpL.x, gpL.y, 150, "#ff5e7e", gravSide < 0);
+    planet(gpR.x, gpR.y, 150, "#4dd2ff", gravSide > 0);
 
     // pull line toward the active planet (makes the force readable)
-    const tp = gravSide > 0 ? G3_RIGHT : G3_LEFT;
+    const tp = gravSide > 0 ? gpR : gpL;
     ctx.strokeStyle = gravSide > 0 ? "rgba(77,210,255,0.28)" : "rgba(255,94,126,0.28)";
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(orb.x, orb.y); ctx.lineTo(tp.x, tp.y); ctx.stroke();
@@ -746,6 +761,7 @@
   function start() {
     reset();
     resume();
+    if (DEV_START_ORBITAL >= 2) enterOrbital(DEV_START_ORBITAL);   // dev: ?orbital=N
     sfx("start");
   }
 

@@ -68,7 +68,7 @@
   const ARENA_G = 1100;              // radial accel (a tap flips inward <-> outward)
   const ARENA_MAXVR = 300;           // radial speed cap
   const ARENA_OMEGA = 0.9;           // steady angular sweep around the hole (rad/s)
-  const DEBRIS_FIRST = 2.0;          // delay before the first debris (arena starts empty)
+  const DEBRIS_FIRST = 1.8;          // delay before the first debris (arena starts empty)
   const DEBRIS_SPEED0 = 50;          // initial inward speed of falling debris
   const DEBRIS_GRAV = 85;            // inward acceleration (pulled toward the hole)
   const SURGE_EVERY = 6;             // seconds between gravity-surge attacks
@@ -147,7 +147,7 @@
   let orb, gravSide, bars, bonuses, scroll, score, running, lastT, rafId, shake, paused;
   let mode, depthSpeed, flash, intro, travel, orbital;
   let g3Time, gpL, gpR;   // Orbital 3: oscillation clock + live planet positions
-  let arenaTime, scoreClock, debris, coins, surge, nextSurge, nextDebris;   // Orbital 5 arena
+  let arenaTime, scoreClock, debris, coins, surge, nextSurge, nextDebris, escaped;   // Orbital 5 arena
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
 
   const BEST_KEY = "tidal-best";
@@ -183,7 +183,7 @@
     gpL = { x: G3_LEFT.x, y: G3_LEFT.y };
     gpR = { x: G3_RIGHT.x, y: G3_RIGHT.y };
     arenaTime = 0; scoreClock = 0; surge = null; nextSurge = SURGE_EVERY;
-    nextDebris = DEBRIS_FIRST; debris = []; coins = [];
+    nextDebris = DEBRIS_FIRST; debris = []; coins = []; escaped = false;
     if (mode === "3d") build3DField(); else { hide3D(); build2DField(); }
     if (window.TidalFX) TidalFX.setOrbital(orbital);
     scoreEl.textContent = score;
@@ -492,7 +492,7 @@
       ang: Math.random() * TAU,
       r: ARENA.rArena - 4,                 // spawns at the rim
       vr: -DEBRIS_SPEED0,                  // falling inward
-      vAng: (Math.random() - 0.5) * 0.5,   // slight sideways drift
+      vAng: -(0.05 + Math.random() * 0.4), // counter-clockwise drift
       size: 9 + Math.random() * 7,
     });
   }
@@ -508,6 +508,7 @@
   function buildArena() {
     arenaTime = 0; scoreClock = 0; surge = null; nextSurge = SURGE_EVERY;
     nextDebris = DEBRIS_FIRST;    // starts empty; debris arrives gradually
+    escaped = false;
     orb.theta = -Math.PI / 2;     // start at the top of the ring
     orb.rho = 125;                // mid-band radius
     orb.vrho = 0;
@@ -532,6 +533,18 @@
       return;
     }
 
+    // flung past the rim: keep flying outward into space, then it's over
+    if (escaped) {
+      orb.theta -= ARENA_OMEGA * dt;
+      orb.rho += ARENA_MAXVR * 1.4 * dt;
+      orb.x = ARENA.x + Math.cos(orb.theta) * orb.rho;
+      orb.y = ARENA.y + Math.sin(orb.theta) * orb.rho;
+      orb.trail.push({ x: orb.x, y: orb.y });
+      if (orb.trail.length > 22) orb.trail.shift();
+      if (orb.rho > 470) return die();   // off into space → game over
+      return;
+    }
+
     arenaTime += dt;
 
     // boss attack: scheduled gravity surges (telegraphed, then strong inward pull)
@@ -551,7 +564,7 @@
     // steady angular sweep; the tap flips the RADIAL pull in <-> out, so you
     // sway between the hole (inner wall) and the rim (outer wall) — a pendulum
     // bent into a circle.
-    orb.theta += ARENA_OMEGA * dt;
+    orb.theta -= ARENA_OMEGA * dt;   // counter-clockwise sweep
     orb.vrho += (gravSide > 0 ? -1 : 1) * ARENA_G * gMult * dt;   // attract = inward
     orb.vrho = Math.max(-ARENA_MAXVR, Math.min(ARENA_MAXVR, orb.vrho));
     orb.rho += orb.vrho * dt;
@@ -562,21 +575,28 @@
     if (orb.trail.length > 22) orb.trail.shift();
     if (shake > 0) shake = Math.max(0, shake - dt * 60);
 
-    // death: pulled into the hole, or flung past the rim
-    if (orb.rho <= ARENA.rEvent + ORB_R * 0.3 || orb.rho >= ARENA.rArena) return die();
+    // pulled into the hole → consumed
+    if (orb.rho <= ARENA.rEvent + ORB_R * 0.3) return die();
+    // flung past the rim → fly off into space (handled on the next frames)
+    if (orb.rho >= ARENA.rArena) { escaped = true; return; }
 
     // debris falls inward from the rim — spawns gradually, faster over time
     nextDebris -= dt;
     if (nextDebris <= 0) {
       spawnDebris();
-      nextDebris = Math.max(0.42, 1.8 - arenaTime * 0.05);
+      nextDebris = Math.max(0.38, 1.5 - arenaTime * 0.05);
     }
     for (let i = debris.length - 1; i >= 0; i--) {
       const d = debris[i];
       d.vr -= DEBRIS_GRAV * gMult * dt;     // accelerates toward the hole (harder mid-surge)
       d.r += d.vr * dt;
       d.ang += d.vAng * dt;
-      if (d.r <= ARENA.rEvent) { debris.splice(i, 1); continue; }   // consumed by the hole
+      if (d.r <= ARENA.rEvent) {            // consumed by the hole → score
+        debris.splice(i, 1);
+        addScore(1);
+        if (orbital !== fromOrbital) return;
+        continue;
+      }
       const ex = ARENA.x + Math.cos(d.ang) * d.r, ey = ARENA.y + Math.sin(d.ang) * d.r;
       const a = ex - orb.x, b = ey - orb.y;
       if (a * a + b * b < (ORB_R + d.size) * (ORB_R + d.size)) return die();
@@ -829,7 +849,7 @@
     // swirling accretion streaks spiralling around the hole
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.rotate(arenaTime * 0.9 + intro * 3);
+    ctx.rotate(-(arenaTime * 0.9 + intro * 3));   // counter-clockwise swirl
     ctx.strokeStyle = "rgba(255,120,40,0.5)";
     ctx.lineWidth = 3;
     for (let k = 0; k < 3; k++) {

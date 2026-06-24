@@ -61,7 +61,11 @@
   // Orbital 4 "Drift": gaps slide horizontally as barriers approach, + faster.
   const GAP_DRIFT_AMP = 70;          // how far a gap slides from its base
   const GAP_DRIFT_FREQ = 0.55;       // slide speed (vs world travel)
-  const O4_SPEED_MULT = 1.25;        // extra tunnel speed for orbitals 4+
+  const O4_SPEED_MULT = 1.25;        // extra tunnel speed at orbital 4
+  const O5_SPEED_MULT = 1.45;        // extra tunnel speed at the boss
+
+  // Orbital 5 "Event Horizon" boss: a wandering lateral drag from the black hole.
+  const BH_PULL = 1100;
 
   // ---- Orbital 3 "Binary" tunables (2D multi-gravity) ----------------------
   // Two planets offset diagonally so the pull is 2D: left tugs up-left,
@@ -305,7 +309,7 @@
   function spawnBar3D(d) {
     const gap = gapWidth();
     let baseX;
-    if (orbital === 4) {
+    if (orbital >= 4) {
       // keep the gap's full oscillation within the walls (always passable)
       const lo = WALL + 10 + GAP_DRIFT_AMP;
       const hi = W - WALL - 10 - gap - GAP_DRIFT_AMP;
@@ -471,7 +475,7 @@
   // ---- 3D simulation -------------------------------------------------------
   function update3D(dt) {
     const fromOrbital = orbital;
-    const speedCap = DEPTH_SPEED_MAX * (orbital >= 4 ? O4_SPEED_MULT : 1);
+    const speedCap = DEPTH_SPEED_MAX * (orbital >= 5 ? O5_SPEED_MULT : orbital >= 4 ? O4_SPEED_MULT : 1);
     depthSpeed = Math.min(speedCap, depthSpeed + DEPTH_ACCEL * dt);
 
     // Hold the orb dead-center for the first ~2.4s of the 3D intro, then release
@@ -481,8 +485,12 @@
       orb.vx = 0;
       orb.trail.push({ x: orb.x, y: orb.y });
       if (orb.trail.length > 14) orb.trail.shift();
-    } else if (!stepOrb(dt)) {
-      return die();
+    } else {
+      if (orbital === 5) {   // the black hole drags you sideways — fight it
+        const drag = BH_PULL * (0.6 * Math.sin(travel * 0.5) + 0.4 * Math.sin(travel * 1.1));
+        orb.vx += drag * dt;
+      }
+      if (!stepOrb(dt)) return die();
     }
 
     // Ease the tunnel into motion during the lead-in: nearly still at first,
@@ -493,8 +501,8 @@
     for (const b of bars) b.d -= dd;
     for (const o of bonuses) o.d -= dd;
 
-    // Orbital 4: slide each barrier's gap horizontally as it approaches
-    if (orbital === 4) {
+    // Orbitals 4+: slide each barrier's gap horizontally as it approaches
+    if (orbital >= 4) {
       for (const b of bars) {
         b.gapX = b.baseX + GAP_DRIFT_AMP * Math.sin(travel * GAP_DRIFT_FREQ + b.phase);
       }

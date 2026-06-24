@@ -560,7 +560,7 @@
 
     orb.trail.push({ x: orb.x, y: orb.y });
     if (orb.trail.length > 22) orb.trail.shift();
-    shake = surge && surge.phase === "active" ? 7 : 2.2;   // ominous constant tremor
+    if (shake > 0) shake = Math.max(0, shake - dt * 60);
 
     // death: pulled into the hole, or flung past the rim
     if (orb.rho <= ARENA.rEvent + ORB_R * 0.3 || orb.rho >= ARENA.rArena) return die();

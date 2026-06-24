@@ -65,8 +65,9 @@
 
   // ---- Orbital 5 "Event Horizon": top-down survival arena around a black hole
   const ARENA = { x: W / 2, y: H * 0.46, rEvent: 30, rArena: 196 };
-  const ARENA_G = 1000;              // radial accel (a tap flips attract <-> repel)
-  const ARENA_MAXV = 470;            // 2D speed cap
+  const ARENA_G = 1100;              // radial accel (a tap flips inward <-> outward)
+  const ARENA_MAXVR = 300;           // radial speed cap
+  const ARENA_OMEGA = 0.9;           // steady angular sweep around the hole (rad/s)
   const DEBRIS_FIRST = 2.5;          // delay before the first debris (arena starts empty)
   const DEBRIS_SPEED0 = 50;          // initial inward speed of falling debris
   const DEBRIS_GRAV = 85;            // inward acceleration (pulled toward the hole)
@@ -507,10 +508,13 @@
   function buildArena() {
     arenaTime = 0; scoreClock = 0; surge = null; nextSurge = SURGE_EVERY;
     nextDebris = DEBRIS_FIRST;    // starts empty; debris arrives gradually
-    orb.x = ARENA.x; orb.y = ARENA.y - 115;
-    orb.vx = 340; orb.vy = 0;     // ~circular orbit velocity: sqrt(ARENA_G * r)
+    orb.theta = -Math.PI / 2;     // start at the top of the ring
+    orb.rho = 125;                // mid-band radius
+    orb.vrho = 0;
+    orb.x = ARENA.x + Math.cos(orb.theta) * orb.rho;
+    orb.y = ARENA.y + Math.sin(orb.theta) * orb.rho;
     orb.trail = [];
-    gravSide = 1;                 // start by attracting
+    gravSide = -1;                // start drifting gently outward (rim is farther = safer)
     debris = [];
     coins = []; for (let i = 0; i < 3; i++) spawnCoin();
   }
@@ -533,26 +537,22 @@
       }
     }
 
-    // radial attract / repel toward the black hole
-    const dx = orb.x - ARENA.x, dy = orb.y - ARENA.y;
-    const dist = Math.hypot(dx, dy) || 1;
-    const ux = dx / dist, uy = dy / dist;        // outward unit vector
-    const sign = gravSide > 0 ? -1 : 1;          // attract = inward
-    const g = ARENA_G * gMult;
-    orb.vx += ux * g * sign * dt;
-    orb.vy += uy * g * sign * dt;
-    const sp = Math.hypot(orb.vx, orb.vy);
-    if (sp > ARENA_MAXV) { orb.vx *= ARENA_MAXV / sp; orb.vy *= ARENA_MAXV / sp; }
-    orb.x += orb.vx * dt;
-    orb.y += orb.vy * dt;
+    // steady angular sweep; the tap flips the RADIAL pull in <-> out, so you
+    // sway between the hole (inner wall) and the rim (outer wall) — a pendulum
+    // bent into a circle.
+    orb.theta += ARENA_OMEGA * dt;
+    orb.vrho += (gravSide > 0 ? -1 : 1) * ARENA_G * gMult * dt;   // attract = inward
+    orb.vrho = Math.max(-ARENA_MAXVR, Math.min(ARENA_MAXVR, orb.vrho));
+    orb.rho += orb.vrho * dt;
+    orb.x = ARENA.x + Math.cos(orb.theta) * orb.rho;
+    orb.y = ARENA.y + Math.sin(orb.theta) * orb.rho;
 
     orb.trail.push({ x: orb.x, y: orb.y });
     if (orb.trail.length > 22) orb.trail.shift();
     if (shake > 0) shake = Math.max(0, shake - dt * 60);
 
-    // death: consumed by the hole, or flung out of the arena
-    const r = Math.hypot(orb.x - ARENA.x, orb.y - ARENA.y);
-    if (r <= ARENA.rEvent + ORB_R * 0.3 || r >= ARENA.rArena) return die();
+    // death: pulled into the hole, or flung past the rim
+    if (orb.rho <= ARENA.rEvent + ORB_R * 0.3 || orb.rho >= ARENA.rArena) return die();
 
     // debris falls inward from the rim — spawns gradually, faster over time
     nextDebris -= dt;
@@ -1067,7 +1067,9 @@
     gravSide *= -1;
     // Shed some momentum on flip so the reversal registers immediately,
     // making the back-and-forth feel reactive rather than floaty.
-    if (orbital !== 5) {     // arena keeps orbital momentum; only flips the pull
+    if (orbital === 5) {
+      orb.vrho *= 0.5;       // arena: shed radial momentum for a responsive sway
+    } else {
       orb.vx *= 0.55;
       orb.vy *= 0.55;
     }

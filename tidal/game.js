@@ -34,14 +34,16 @@
   //   1: 2D pendulum (the original)      2: 3D tunnel
   //   3: 2D multi-gravity expansion      4: 3D expansion
   //   5: black-hole boss (finale)
-  const FAST_ORBITALS = true;   // DEV: compress thresholds for quick testing (false for release)
   const ORBITALS = [
-    { n: 1, dim: "2d", threshold: 0 },
-    { n: 2, dim: "3d", threshold: FAST_ORBITALS ? 5 : 100 },
-    { n: 3, dim: "2d", threshold: FAST_ORBITALS ? 10 : 250 },
-    { n: 4, dim: "3d", threshold: FAST_ORBITALS ? 15 : 450 },
-    { n: 5, dim: "2d", threshold: FAST_ORBITALS ? 20 : 700 },  // black-hole survival arena
+    { n: 1, dim: "2d" },   // 2D pendulum
+    { n: 2, dim: "3d" },   // 3D tunnel
+    { n: 3, dim: "2d" },   // 2D binary
+    { n: 4, dim: "3d" },   // 3D binary tunnel
+    { n: 5, dim: "2d" },   // black-hole survival arena
   ];
+  // Score to reach orbital n. Dev mode spaces them 10 apart (10/20/30/40);
+  // regular mode 100 apart (100/200/300/400).
+  function orbitalThreshold(n) { return n <= 1 ? 0 : (devMode ? 10 : 100) * (n - 1); }
   const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V"];
 
   // Global pace. NORMAL is the shipped play speed (75% of the old baseline).
@@ -160,6 +162,9 @@
   const DEV_START_3D = params.has("3d") || params.get("mode") === "3d";
   // Dev shortcut: ?orbital=N (1-5) boots every run straight into that Orbital.
   const DEV_START_ORBITAL = Math.max(0, Math.min(5, Number(params.get("orbital")) || 0));
+  // Dev mode = compressed thresholds (10 per orbital). Toggled by the Dev Play
+  // button, the dev shortcuts, or ?dev / ?orbital / ?3d in the URL.
+  let devMode = params.has("dev") || DEV_START_3D || DEV_START_ORBITAL > 0;
 
   // Persists across runs (it's a setting, not part of a game).
   let timeScale = params.has("slow") ? SPEED_DEV : SPEED_NORMAL;
@@ -455,7 +460,7 @@
     scoreEl.textContent = score;
     // advance to the next Orbital once its score threshold is reached
     const next = ORBITALS[orbital]; // orbital is 1-based → this is the next one
-    if (next && score >= next.threshold) enterOrbital(next.n);
+    if (next && score >= orbitalThreshold(next.n)) enterOrbital(next.n);
   }
 
   function inGap(b) {
@@ -1192,7 +1197,8 @@
     b.addEventListener("click", (e) => {
       e.stopPropagation();
       const a = b.dataset.action;
-      if (a === "play") start();
+      if (a === "play") { devMode = false; start(); }
+      else if (a === "devplay") { devMode = true; start(); }
       else if (a === "howto") showScreen("howto");
       else if (a === "settings") { refreshToggles(); showScreen("settings"); }
       else if (a === "back") showScreen("title");
@@ -1220,7 +1226,7 @@
       const now = performance.now();
       taps = now - last < 800 ? taps + 1 : 1;
       last = now;
-      if (taps >= 5) { taps = 0; reset("3d"); resume(); enterOrbital(2); }
+      if (taps >= 5) { taps = 0; devMode = true; reset("3d"); resume(); enterOrbital(2); }
     });
   })();
 
@@ -1245,6 +1251,7 @@
     if ((e.key === "Escape" || e.key === "p" || e.key === "P") && running) pauseGame();
     // Dev: press 1–5 to jump straight to that Orbital.
     if (e.key >= "1" && e.key <= "5") {
+      devMode = true;
       const n = Number(e.key);
       if (!running) { reset(ORBITALS[n - 1].dim); resume(); enterOrbital(n); }
       else enterOrbital(n);

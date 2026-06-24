@@ -68,7 +68,7 @@
   const ARENA_G = 1100;              // radial accel (a tap flips inward <-> outward)
   const ARENA_MAXVR = 300;           // radial speed cap
   const ARENA_OMEGA = 0.9;           // steady angular sweep around the hole (rad/s)
-  const DEBRIS_FIRST = 2.5;          // delay before the first debris (arena starts empty)
+  const DEBRIS_FIRST = 2.0;          // delay before the first debris (arena starts empty)
   const DEBRIS_SPEED0 = 50;          // initial inward speed of falling debris
   const DEBRIS_GRAV = 85;            // inward acceleration (pulled toward the hole)
   const SURGE_EVERY = 6;             // seconds between gravity-surge attacks
@@ -558,7 +558,7 @@
     nextDebris -= dt;
     if (nextDebris <= 0) {
       spawnDebris();
-      nextDebris = Math.max(0.55, 2.4 - arenaTime * 0.05);
+      nextDebris = Math.max(0.42, 1.8 - arenaTime * 0.05);
     }
     for (let i = debris.length - 1; i >= 0; i--) {
       const d = debris[i];

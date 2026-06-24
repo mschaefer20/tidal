@@ -1,24 +1,22 @@
 # Codemagic CI config — builds & ships Tidal (Capacitor) to TestFlight/App Store
 # WITHOUT needing a Mac on your end.
 #
-# Before the first run, in the Codemagic UI:
-#  1. Connect this repository.
-#  2. Add an App Store Connect API key integration (Teams → Integrations → App
-#     Store Connect). Note the key reference name and put it below as
-#     APP_STORE_CONNECT_KEY / the `app_store_connect` block.
-#  3. Set BUNDLE_ID below to match `appId` in capacitor.config.json.
-#  4. iOS automatic code signing will create/fetch the signing certs for you.
+# SETUP (one time): add your App Store Connect API key as a secure variable
+# group named "appstore" in Codemagic (see the steps your assistant gave you):
+#   APP_STORE_CONNECT_ISSUER_ID       = the Issuer ID (a UUID)
+#   APP_STORE_CONNECT_KEY_IDENTIFIER  = the Key ID (~10 chars)
+#   APP_STORE_CONNECT_PRIVATE_KEY     = the FULL contents of the .p8 file
+#                                       (including the BEGIN/END lines)
+# Mark them all "Secure". Then set BUNDLE_ID below to match capacitor.config.json.
 
 workflows:
   ios-tidal:
     name: Tidal iOS
     instance_type: mac_mini_m2
     max_build_duration: 60
-    integrations:
-      # Must match the App Store Connect API key name you add in
-      # Codemagic → Teams → Integrations → App Store Connect.
-      app_store_connect: "Tidal ASC Key"
     environment:
+      groups:
+        - appstore          # the variable group you create in the Codemagic UI
       vars:
         BUNDLE_ID: "com.mschaefer20.tidal"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
@@ -26,9 +24,6 @@ workflows:
       node: 20
       xcode: latest
       cocoapods: default
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: "com.mschaefer20.tidal"
     scripts:
       - name: Install npm dependencies
         script: npm install
@@ -40,14 +35,20 @@ workflows:
       - name: Generate app icon & splash
         script: npx capacitor-assets generate --ios || true
       - name: Install CocoaPods
+        script: cd ios/App && pod install
+      - name: Fetch signing files & set up keychain (uses the API key)
         script: |
-          cd ios/App && pod install
-      - name: Set build number
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+          keychain initialize
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: Set build number from TestFlight
         script: |
           cd ios/App
-          agvtool new-version -all $(($BUILD_NUMBER + 1))
-      - name: Apply signing
-        script: xcode-project use-profiles
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" 2>/dev/null || echo 0)
+          agvtool new-version -all $(($LATEST + 1))
       - name: Build IPA
         script: |
           xcode-project build-ipa \
@@ -58,6 +59,8 @@ workflows:
       - /tmp/xcodebuild_logs/*.log
     publishing:
       app_store_connect:
-        auth: integration          # uses the App Store Connect API key integration
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
         # submit_to_app_store: false   # flip to true once you're ready to release

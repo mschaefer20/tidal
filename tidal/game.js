@@ -28,9 +28,21 @@
   const GAP_MIN = 96;
   const BAR_SPACING = 230;           // vertical distance between barriers
 
-  // Score at which the world transforms into the 3D mode.
-  // ⚠️ TEMP: lowered to 5 for testing — SET BACK TO 100 BEFORE PUBLIC RELEASE.
-  const SHIFT_SCORE = 5;
+  // ---- Orbital progression -------------------------------------------------
+  // Five "Orbitals" the player ascends as the score climbs. Each has a form
+  // (2d / 3d), its own music track, and (being built out) its own gameplay.
+  //   1: 2D pendulum (the original)      2: 3D tunnel
+  //   3: 2D multi-gravity expansion      4: 3D expansion
+  //   5: black-hole boss (finale)
+  const FAST_ORBITALS = true;   // DEV: compress thresholds for quick testing (false for release)
+  const ORBITALS = [
+    { n: 1, dim: "2d", threshold: 0 },
+    { n: 2, dim: "3d", threshold: FAST_ORBITALS ? 5 : 100 },
+    { n: 3, dim: "2d", threshold: FAST_ORBITALS ? 10 : 250 },
+    { n: 4, dim: "3d", threshold: FAST_ORBITALS ? 15 : 450 },
+    { n: 5, dim: "3d", threshold: FAST_ORBITALS ? 20 : 700 },
+  ];
+  const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V"];
 
   // Global pace. NORMAL is the shipped play speed (75% of the old baseline).
   // DEV_SLOW is a toggleable slow-motion for development/testing.
@@ -100,7 +112,7 @@
 
   // ---- State ---------------------------------------------------------------
   let orb, gravSide, bars, bonuses, scroll, score, running, lastT, rafId, shake, paused;
-  let mode, depthSpeed, flash, intro, travel;
+  let mode, depthSpeed, flash, intro, travel, orbital;
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
 
   const BEST_KEY = "tidal-best";
@@ -127,37 +139,58 @@
     travel = 0;
     paused = false;
     mode = startMode || (DEV_START_3D ? "3d" : "2d");
+    orbital = mode === "3d" ? 2 : 1;
     intro = mode === "3d" ? 0 : 1;
     depthSpeed = DEPTH_SPEED_START;
-    if (mode === "3d") { build3DField(); }
-    else { hide3D(); for (let y = -40; y > -BAR_SPACING * 3; y -= BAR_SPACING) spawnBar(y); }
+    if (mode === "3d") build3DField(); else { hide3D(); build2DField(); }
+    if (window.TidalFX) TidalFX.setOrbital(orbital);
     scoreEl.textContent = score;
   }
 
-  // Build a fresh set of barriers receding into the distance (3D mode).
+  // Build a fresh set of scrolling barriers above the screen (2D forms).
+  function build2DField() {
+    bars = [];
+    bonuses = [];
+    for (let y = -40; y > -BAR_SPACING * 3; y -= BAR_SPACING) spawnBar(y);
+  }
+
+  // Build a fresh set of barriers receding into the distance (3D forms).
   function build3DField() {
     bars = [];
     bonuses = [];
     for (let d = 7; d <= D_SPAWN; d += DEPTH_SPACING) spawnBar3D(d);
   }
 
-  // Switch an in-progress 2D run into the 3D world.
-  function enter3D() {
-    mode = "3d";
-    depthSpeed = DEPTH_SPEED_START;
+  // Advance into a new Orbital mid-run: swap form, music, field, and play the
+  // transition. Works for any 2D⇄3D combination.
+  function enterOrbital(n) {
+    orbital = n;
+    mode = ORBITALS[n - 1].dim;
     flash = settings.reduceMotion ? 0.25 : 1;
-    intro = 0;
-    travel = 0;
-    build3DField();
-    show3D();
-    playShiftBanner();
+    if (mode === "3d") {
+      depthSpeed = DEPTH_SPEED_START;
+      intro = 0;
+      travel = 0;
+      build3DField();
+      show3D();
+    } else {
+      intro = 1;
+      hide3D();
+      build2DField();
+    }
+    if (window.TidalFX) TidalFX.setOrbital(n);
+    playShiftBanner(n);
     sfx("shift");
     buzz("medium");
   }
 
-  function playShiftBanner() {
+  function playShiftBanner(n) {
     const el = document.getElementById("shift-banner");
     if (!el) return;
+    const big = el.querySelector(".big");
+    const small = el.querySelector(".small");
+    if (big) big.textContent = ORBITAL_LABEL[n] || "ORBITAL";
+    if (small) small.textContent = ORBITALS[n - 1].dim === "3d" ? "3D" : "2D";
     el.classList.remove("run");
     void el.offsetWidth;        // restart the CSS animation
     el.classList.add("run");
@@ -206,6 +239,7 @@
       gravSide,
       intro,
       travel,
+      orbital,
       reduceMotion: settings.reduceMotion,
       bars: bars.filter((b) => b.d > -1.2).map((b) => ({
         d: b.d,
@@ -269,7 +303,9 @@
   function addScore(n) {
     score += n;
     scoreEl.textContent = score;
-    if (mode === "2d" && score >= SHIFT_SCORE) enter3D();
+    // advance to the next Orbital once its score threshold is reached
+    const next = ORBITALS[orbital]; // orbital is 1-based → this is the next one
+    if (next && score >= next.threshold) enterOrbital(next.n);
   }
 
   function inGap(b) {
@@ -277,6 +313,7 @@
   }
 
   function update2D(dt) {
+    const fromOrbital = orbital;
     // ramp difficulty
     scroll = Math.min(SCROLL_MAX, scroll + SCROLL_ACCEL * dt);
 
@@ -300,7 +337,7 @@
       if (!b.passed && b.y > ORB_Y) {
         b.passed = true;
         addScore(1);
-        if (mode === "3d") return;   // mode changed mid-loop; bail
+        if (orbital !== fromOrbital) return;   // advanced orbital mid-loop; bail
       }
       // collision band
       if (b.y + BAR_TH >= ORB_Y - ORB_R && b.y <= ORB_Y + ORB_R) {
@@ -322,6 +359,7 @@
 
   // ---- 3D simulation -------------------------------------------------------
   function update3D(dt) {
+    const fromOrbital = orbital;
     depthSpeed = Math.min(DEPTH_SPEED_MAX, depthSpeed + DEPTH_ACCEL * dt);
 
     // Hold the orb dead-center for the first ~2.4s of the 3D intro, then release
@@ -349,6 +387,7 @@
         b.passed = true;
         if (!inGap(b)) return die();
         addScore(1);
+        if (orbital !== fromOrbital) return;   // advanced orbital mid-loop; bail
       }
     }
 
@@ -738,7 +777,7 @@
       const now = performance.now();
       taps = now - last < 800 ? taps + 1 : 1;
       last = now;
-      if (taps >= 5) { taps = 0; reset("3d"); resume(); }
+      if (taps >= 5) { taps = 0; reset("3d"); resume(); enterOrbital(2); }
     });
   })();
 
@@ -761,10 +800,11 @@
       else if (!overlay.classList.contains("hidden")) primaryAction(); // resume / restart
     }
     if ((e.key === "Escape" || e.key === "p" || e.key === "P") && running) pauseGame();
-    // Dev preview: press "3" to jump straight into the 3D mode.
-    if (e.key === "3") {
-      if (!running) { reset("3d"); resume(); }
-      else if (mode === "2d") enter3D();
+    // Dev: press 1–5 to jump straight to that Orbital.
+    if (e.key >= "1" && e.key <= "5") {
+      const n = Number(e.key);
+      if (!running) { reset(ORBITALS[n - 1].dim); resume(); enterOrbital(n); }
+      else enterOrbital(n);
     }
     // Dev: press "0" to toggle slow-motion (20% speed).
     if (e.key === "0") {

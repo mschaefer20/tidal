@@ -7,9 +7,9 @@
 (() => {
   "use strict";
 
-  let ctx, master, sfxBus, musicBus;
+  let ctx, master, sfxBus, musicBus, musicLP;
   let soundOn = true, musicOn = true, hapticsOn = true;
-  let musicTimer = null, step = 0;
+  let musicTimer = null, step = 0, currentTrack = 1;
 
   function ensure() {
     if (ctx) return;
@@ -29,7 +29,7 @@
 
     // Music bus → darker low-pass (bass-forward)
     const musicGain = ctx.createGain(); musicGain.gain.value = 0.0;
-    const musicLP = ctx.createBiquadFilter(); musicLP.type = "lowpass"; musicLP.frequency.value = 820; musicLP.Q.value = 0.7;
+    musicLP = ctx.createBiquadFilter(); musicLP.type = "lowpass"; musicLP.frequency.value = 820; musicLP.Q.value = 0.7;
     musicGain.connect(musicLP); musicLP.connect(master);
     musicBus = musicGain;
   }
@@ -85,10 +85,16 @@
     },
   };
 
-  // ---- music: dark arpeggio + deep bass drone (Stranger Things-ish) --------
-  const ARP = [130.81, 164.81, 196.00, 246.94, 261.63, 246.94, 196.00, 164.81]; // Cmaj7 up/down
-  const ROOTS = [65.41, 65.41, 98.00, 65.41]; // C2, C2, G2, C2 per bar
-  const STEP_MS = 200;
+  // ---- music: one dark synth track per Orbital -----------------------------
+  // Same low/bass DNA throughout; key, tempo, waveform and brightness shift.
+  const TRACKS = {
+    1: { arp: [110.00, 130.81, 164.81, 220.00, 164.81, 130.81], roots: [55.00], step: 240, type: "sine", lp: 680, gain: 0.10, bass: 0.20 },                       // I — calm Am
+    2: { arp: [130.81, 164.81, 196.00, 246.94, 261.63, 246.94, 196.00, 164.81], roots: [65.41, 65.41, 98.00, 65.41], step: 200, type: "triangle", lp: 820, gain: 0.10, bass: 0.24 }, // II — ST Cmaj7
+    3: { arp: [146.83, 174.61, 220.00, 261.63, 293.66, 261.63, 220.00, 174.61], roots: [73.42, 73.42, 98.00, 110.00], step: 220, type: "triangle", lp: 900, gain: 0.10, bass: 0.22 }, // III — warm D dorian
+    4: { arp: [164.81, 196.00, 246.94, 329.63, 246.94, 196.00], roots: [82.41, 82.41, 110.00, 98.00], step: 160, type: "sawtooth", lp: 1000, gain: 0.09, bass: 0.24 },               // IV — driving Em
+    5: { arp: [110.00, 130.81, 155.56, 185.00, 196.00, 185.00, 155.56, 130.81], roots: [55.00, 58.27, 55.00, 49.00], step: 150, type: "sawtooth", lp: 900, gain: 0.10, bass: 0.28 }, // V — ominous boss
+  };
+  function trk() { return TRACKS[currentTrack] || TRACKS[1]; }
 
   function mvoice(freq, type, dur, peak) {
     if (!ctx) return;
@@ -104,22 +110,27 @@
 
   function musicStep() {
     if (!ctx || !musicOn) return;
-    const i = step % ARP.length;
-    mvoice(ARP[i], "triangle", 0.30, 0.10);                 // arpeggio pulse
+    const T = trk();
+    const i = step % T.arp.length;
+    const noteDur = (T.step / 1000) * 1.5;
+    mvoice(T.arp[i], T.type, noteDur, T.gain);              // arpeggio pulse
     if (i === 0) {
-      const root = ROOTS[Math.floor(step / ARP.length) % ROOTS.length];
-      mvoice(root, "sine", 1.7, 0.24);                      // bass drone (the bar)
-      mvoice(root / 2, "sine", 1.7, 0.13);                  // sub octave
+      const barLen = (T.arp.length * T.step) / 1000;
+      const root = T.roots[Math.floor(step / T.arp.length) % T.roots.length];
+      mvoice(root, "sine", barLen, T.bass);                // bass drone (the bar)
+      mvoice(root / 2, "sine", barLen, T.bass * 0.55);     // sub octave
     }
     step++;
   }
 
   function startMusic() {
-    if (!ctx || musicTimer || !musicOn) return;
+    if (!ctx || !musicOn) return;
+    stopMusic();
+    if (musicLP) musicLP.frequency.value = trk().lp;
     musicBus.gain.value = 1;
     step = 0;
     musicStep();
-    musicTimer = setInterval(musicStep, STEP_MS);
+    musicTimer = setInterval(musicStep, trk().step);
   }
   function stopMusic() {
     if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
@@ -151,5 +162,11 @@
       else stopMusic();
     },
     setHaptics(v) { hapticsOn = !!v; },
+    // Switch the music track to the given Orbital (restarts the loop on the
+    // new key/tempo; running notes ring out so the change feels continuous).
+    setOrbital(n) {
+      currentTrack = Math.max(1, Math.min(5, n || 1));
+      if (musicOn && ctx) startMusic();
+    },
   };
 })();

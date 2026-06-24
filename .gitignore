@@ -18,3 +18,6 @@ npm-debug.log*
 *.ipa
 *.dSYM.zip
 build/
+
+# Code signing private key (NEVER commit)
+cert_private_key.pem

@@ -7,7 +7,11 @@
 #   APP_STORE_CONNECT_KEY_IDENTIFIER  = the Key ID (~10 chars)
 #   APP_STORE_CONNECT_PRIVATE_KEY     = the FULL contents of the .p8 file
 #                                       (including the BEGIN/END lines)
+#   CERTIFICATE_PRIVATE_KEY           = the full contents of cert_private_key.pem
+#                                       (generated locally; reused every build)
 # Mark them all "Secure". Then set BUNDLE_ID below to match capacitor.config.json.
+# NOTE: the App Store Connect API key must have ADMIN access to create the
+# distribution certificate & provisioning profile.
 
 workflows:
   ios-tidal:
@@ -38,10 +42,11 @@ workflows:
         script: cd ios/App && pod install
       - name: Fetch signing files & set up keychain (uses the API key)
         script: |
+          keychain initialize
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
+            --certificate-key="@env:CERTIFICATE_PRIVATE_KEY" \
             --create
-          keychain initialize
           keychain add-certificates
           xcode-project use-profiles
       - name: Set build number from TestFlight

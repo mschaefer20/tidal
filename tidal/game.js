@@ -61,7 +61,7 @@
   // Orbital 4 "Drift": gaps slide horizontally as barriers approach, + faster.
   const GAP_DRIFT_AMP = 70;          // how far a gap slides from its base
   const GAP_DRIFT_FREQ = 0.55;       // slide speed (vs world travel)
-  const O4_SPEED_MULT = 1.25;        // extra tunnel speed at orbital 4
+  const O4_SPEED_MULT = 1.1;         // slight extra tunnel speed at orbital 4
 
   // ---- Orbital 5 "Event Horizon": top-down survival arena around a black hole
   const ARENA = { x: W / 2, y: H * 0.46, rEvent: 30, rArena: 196 };
@@ -214,7 +214,7 @@
     orb.y = n === 3 ? H / 2 : ORB_Y;
     orb.vx = 0;
     orb.vy = 0;
-    if (n === 3) g3Time = 0;
+    if (n === 3 || n === 4) g3Time = 0;
     if (mode === "3d") {
       depthSpeed = DEPTH_SPEED_START;
       intro = 0;
@@ -284,6 +284,7 @@
     const nx = (x) => (x - W / 2) / halfPlay;
     return {
       orbNX: Math.max(-1.2, Math.min(1.2, nx(orb.x))),
+      orbNY: orbital === 4 ? (orb.y - H / 2) / (H / 2) : 0,
       gravSide,
       intro,
       travel,
@@ -321,18 +322,10 @@
   // Same barrier, positioned by depth instead of y (3D mode).
   function spawnBar3D(d) {
     const gap = gapWidth();
-    let baseX;
-    if (orbital >= 4) {
-      // keep the gap's full oscillation within the walls (always passable)
-      const lo = WALL + 10 + GAP_DRIFT_AMP;
-      const hi = W - WALL - 10 - gap - GAP_DRIFT_AMP;
-      baseX = lo + Math.random() * Math.max(0, hi - lo);
-    } else {
-      baseX = randomGapX(gap);
-    }
-    bars.push({ d, gapX: baseX, baseX, phase: Math.random() * Math.PI * 2, gapW: gap, passed: false });
+    const gapX = randomGapX(gap);
+    bars.push({ d, gapX, gapW: gap, passed: false });
     if (Math.random() < 0.6) {
-      const bx = baseX + Math.random() * gap;
+      const bx = gapX + Math.random() * gap;
       bonuses.push({ x: bx, d: d - DEPTH_SPACING / 2, taken: false });
     }
   }
@@ -427,6 +420,32 @@
     if (orb.trail.length > 14) orb.trail.shift();
     if (shake > 0) shake = Math.max(0, shake - dt * 60);
     return !(orb.x <= WALL || orb.x >= W - WALL);
+  }
+
+  // Orbital 4: 2D flight toward oscillating wells inside the tunnel (Orbital 3's
+  // pull, but in the depth-tunnel). Deadly side walls AND top/bottom edges.
+  function stepBinary3D(dt) {
+    g3Time += dt;
+    const sway = (ph) => G3_AMP * (
+      0.5 * Math.sin(g3Time * G3_FREQ + ph) +
+      0.3 * Math.sin(g3Time * G3_FREQ2 + ph * 1.7) +
+      0.2 * Math.sin(g3Time * G3_FREQ3 + ph * 0.6)
+    );
+    gpL.y = G3_LEFT.y + sway(0);
+    gpR.y = G3_RIGHT.y + sway(2.4);
+    const tp = gravSide > 0 ? gpR : gpL;
+    const dx = tp.x - orb.x, dy = tp.y - orb.y;
+    const len = Math.hypot(dx, dy) || 1;
+    orb.vx += (dx / len) * GRAVITY3 * dt;
+    orb.vy += (dy / len) * GRAVITY3 * dt;
+    orb.vx = Math.max(-MAXV3, Math.min(MAXV3, orb.vx));
+    orb.vy = Math.max(-MAXV3, Math.min(MAXV3, orb.vy));
+    orb.x += orb.vx * dt;
+    orb.y += orb.vy * dt;
+    orb.trail.push({ x: orb.x, y: orb.y });
+    if (orb.trail.length > 14) orb.trail.shift();
+    if (shake > 0) shake = Math.max(0, shake - dt * 60);
+    return !(orb.x <= WALL || orb.x >= W - WALL || orb.y <= Y_WALL || orb.y >= H - Y_WALL);
   }
 
   function addScore(n) {
@@ -633,10 +652,12 @@
     // Hold the orb dead-center for the first ~2.4s of the 3D intro, then release
     // it to gravity — a clear beat to see it before it starts drifting.
     if (intro < 0.6) {
-      orb.x = W / 2;
-      orb.vx = 0;
+      orb.x = W / 2; orb.vx = 0;
+      if (orbital === 4) { orb.y = H / 2; orb.vy = 0; }   // center vertically too
       orb.trail.push({ x: orb.x, y: orb.y });
       if (orb.trail.length > 14) orb.trail.shift();
+    } else if (orbital === 4) {
+      if (!stepBinary3D(dt)) return die();                // Orbital 4: 2D oscillating-well flight
     } else if (!stepOrb(dt)) {
       return die();
     }
@@ -649,12 +670,6 @@
     for (const b of bars) b.d -= dd;
     for (const o of bonuses) o.d -= dd;
 
-    // Orbitals 4+: slide each barrier's gap horizontally as it approaches
-    if (orbital >= 4) {
-      for (const b of bars) {
-        b.gapX = b.baseX + GAP_DRIFT_AMP * Math.sin(travel * GAP_DRIFT_FREQ + b.phase);
-      }
-    }
 
     // collisions / scoring as barriers reach the camera plane (d crossing 0)
     for (const b of bars) {

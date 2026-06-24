@@ -302,7 +302,7 @@ const api = {
     orbMesh.material.emissive.copy(side);
     orbMesh.material.color.copy(side).multiplyScalar(0.45);
     orbLight.color.copy(side);
-    orbMesh.position.set(s.orbNX * HALFW, 0, 0);
+    orbMesh.position.set(s.orbNX * HALFW, (s.orbNY || 0) * FY, 0);   // orbNY drives Orbital 4's vertical drift
 
     // intro fly-in — slow, cinematic rush from deep space into the tunnel
     const ip = Math.min(1, s.intro);

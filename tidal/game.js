@@ -58,6 +58,15 @@
   const DEPTH_SPEED_MAX = 6.3;
   const DEPTH_ACCEL = 0.112;
 
+  // ---- Orbital 3 "Binary" tunables (2D multi-gravity) ----------------------
+  // Two planets offset diagonally so the pull is 2D: left tugs up-left,
+  // right tugs down-right → curved, two-axis motion. Top/bottom are deadly.
+  const G3_LEFT = { x: -0.10 * W, y: H * 0.28 };
+  const G3_RIGHT = { x: 1.10 * W, y: H * 0.72 };
+  const GRAVITY3 = 1650;             // directional accel toward the active planet
+  const MAXV3 = 520;                 // 2D speed cap
+  const Y_WALL = ORB_R + 8;          // deadly top/bottom margin
+
   const canvas = document.getElementById("board");
   const ctx = canvas.getContext("2d");
   const canvas3d = document.getElementById("board3d");
@@ -128,7 +137,7 @@
   let timeScale = params.has("slow") ? SPEED_DEV : SPEED_NORMAL;
 
   function reset(startMode) {
-    orb = { x: W / 2, vx: 0, trail: [] };
+    orb = { x: W / 2, vx: 0, y: ORB_Y, vy: 0, trail: [] };
     gravSide = 1;            // +1 pulls right, -1 pulls left
     bars = [];
     bonuses = [];
@@ -167,6 +176,11 @@
     orbital = n;
     mode = ORBITALS[n - 1].dim;
     flash = settings.reduceMotion ? 0.25 : 1;
+    // clean, centered start for the new orbital
+    orb.x = W / 2;
+    orb.y = n === 3 ? H / 2 : ORB_Y;
+    orb.vx = 0;
+    orb.vy = 0;
     if (mode === "3d") {
       depthSpeed = DEPTH_SPEED_START;
       intro = 0;
@@ -285,7 +299,67 @@
   function update(dt) {
     if (flash > 0) flash = Math.max(0, flash - dt * 1.6);
     if (mode === "3d") return update3D(dt);
+    if (orbital === 3) return updateBinary(dt);
     return update2D(dt);
+  }
+
+  // ---- Orbital 3 "Binary": 2D gravity toward the active planet -------------
+  function updateBinary(dt) {
+    const fromOrbital = orbital;
+    scroll = Math.min(SCROLL_MAX, scroll + SCROLL_ACCEL * dt);
+
+    // accelerate toward the active planet (a 2D direction → curved motion)
+    const tp = gravSide > 0 ? G3_RIGHT : G3_LEFT;
+    const dx = tp.x - orb.x, dy = tp.y - orb.y;
+    const len = Math.hypot(dx, dy) || 1;
+    orb.vx += (dx / len) * GRAVITY3 * dt;
+    orb.vy += (dy / len) * GRAVITY3 * dt;
+    orb.vx = Math.max(-MAXV3, Math.min(MAXV3, orb.vx));
+    orb.vy = Math.max(-MAXV3, Math.min(MAXV3, orb.vy));
+    orb.x += orb.vx * dt;
+    orb.y += orb.vy * dt;
+
+    orb.trail.push({ x: orb.x, y: orb.y });
+    if (orb.trail.length > 18) orb.trail.shift();
+    if (shake > 0) shake = Math.max(0, shake - dt * 60);
+
+    // deadly: planet surfaces (sides) and top/bottom edges
+    if (orb.x <= WALL || orb.x >= W - WALL) return die();
+    if (orb.y <= Y_WALL || orb.y >= H - Y_WALL) return die();
+
+    // scroll + recycle barriers (same field as Orbital 1)
+    const dys = scroll * dt;
+    for (const b of bars) b.y += dys;
+    for (const o of bonuses) o.y += dys;
+    bars = bars.filter((b) => b.y < H + 40);
+    bonuses = bonuses.filter((o) => o.y < H + 40 && !o.taken);
+    while (bars.length === 0 || bars[bars.length - 1].y > -BAR_SPACING) {
+      const topY = bars.length ? bars[bars.length - 1].y : -40;
+      spawnBar(topY - BAR_SPACING);
+    }
+
+    // scoring + collisions (against the orb's live y)
+    for (const b of bars) {
+      if (!b.passed && b.y > orb.y) {
+        b.passed = true;
+        addScore(1);
+        if (orbital !== fromOrbital) return;
+      }
+      if (b.y + BAR_TH >= orb.y - ORB_R && b.y <= orb.y + ORB_R) {
+        if (!inGap(b)) return die();
+      }
+    }
+
+    // coins
+    for (const o of bonuses) {
+      if (o.taken) continue;
+      const cx = o.x - orb.x, cy = o.y - orb.y;
+      if (cx * cx + cy * cy < (ORB_R + 9) * (ORB_R + 9)) {
+        o.taken = true;
+        addScore(5);
+        sfx("coin"); buzz("light");
+      }
+    }
   }
 
   // Shared horizontal pendulum physics. Returns false if the orb crashed
@@ -294,7 +368,7 @@
     orb.vx += gravSide * GRAVITY * dt;
     orb.vx = Math.max(-MAX_VX, Math.min(MAX_VX, orb.vx));
     orb.x += orb.vx * dt;
-    orb.trail.push(orb.x);
+    orb.trail.push({ x: orb.x, y: orb.y });
     if (orb.trail.length > 14) orb.trail.shift();
     if (shake > 0) shake = Math.max(0, shake - dt * 60);
     return !(orb.x <= WALL || orb.x >= W - WALL);
@@ -367,7 +441,7 @@
     if (intro < 0.6) {
       orb.x = W / 2;
       orb.vx = 0;
-      orb.trail.push(orb.x);
+      orb.trail.push({ x: orb.x, y: orb.y });
       if (orb.trail.length > 14) orb.trail.shift();
     } else if (!stepOrb(dt)) {
       return die();
@@ -420,6 +494,8 @@
     if (mode === "3d") {
       if (engine3D) drawWarpUnderlay();   // speed-lines behind the fading WebGL layer
       else draw3D();                       // canvas fallback
+    } else if (orbital === 3) {
+      drawBinary();
     } else {
       draw2D();
     }
@@ -463,12 +539,48 @@
     for (let i = 0; i < orb.trail.length; i++) {
       const a = (i + 1) / orb.trail.length;
       ctx.globalAlpha = a * 0.4;
-      glowCircle(orb.trail[i], ORB_Y, ORB_R * (0.4 + a * 0.5), gravSide > 0 ? "#4dd2ff" : "#ff5e7e");
+      glowCircle(orb.trail[i].x, orb.trail[i].y, ORB_R * (0.4 + a * 0.5), gravSide > 0 ? "#4dd2ff" : "#ff5e7e");
     }
     ctx.globalAlpha = 1;
 
     // orb (color shows which way it's being pulled)
-    glowCircle(orb.x, ORB_Y, ORB_R, gravSide > 0 ? "#4dd2ff" : "#ff5e7e", true);
+    glowCircle(orb.x, orb.y, ORB_R, gravSide > 0 ? "#4dd2ff" : "#ff5e7e", true);
+  }
+
+  // ---- Orbital 3 rendering -------------------------------------------------
+  function drawBinary() {
+    // deadly top/bottom danger zones
+    ctx.fillStyle = "rgba(255,60,90,0.12)";
+    ctx.fillRect(0, 0, W, Y_WALL);
+    ctx.fillRect(0, H - Y_WALL, W, Y_WALL);
+
+    // the two offset gravity planets (active one brighter)
+    planet(G3_LEFT.x, G3_LEFT.y, 150, "#ff5e7e", gravSide < 0);
+    planet(G3_RIGHT.x, G3_RIGHT.y, 150, "#4dd2ff", gravSide > 0);
+
+    // pull line toward the active planet (makes the force readable)
+    const tp = gravSide > 0 ? G3_RIGHT : G3_LEFT;
+    ctx.strokeStyle = gravSide > 0 ? "rgba(77,210,255,0.28)" : "rgba(255,94,126,0.28)";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(orb.x, orb.y); ctx.lineTo(tp.x, tp.y); ctx.stroke();
+
+    // barriers
+    for (const b of bars) drawBar(b);
+
+    // coins
+    for (const o of bonuses) {
+      if (o.taken) continue;
+      glowCircle(o.x, o.y, 7, "#ffd84d");
+    }
+
+    // orb trail (curved) + orb
+    for (let i = 0; i < orb.trail.length; i++) {
+      const a = (i + 1) / orb.trail.length;
+      ctx.globalAlpha = a * 0.4;
+      glowCircle(orb.trail[i].x, orb.trail[i].y, ORB_R * (0.4 + a * 0.5), gravSide > 0 ? "#4dd2ff" : "#ff5e7e");
+    }
+    ctx.globalAlpha = 1;
+    glowCircle(orb.x, orb.y, ORB_R, gravSide > 0 ? "#4dd2ff" : "#ff5e7e", true);
   }
 
   // Radial speed-lines drawn on the 2D canvas during the 2D→3D fade, so the
@@ -528,7 +640,7 @@
     for (let i = 0; i < orb.trail.length; i++) {
       const a = (i + 1) / orb.trail.length;
       ctx.globalAlpha = a * 0.35;
-      glowCircle(orb.trail[i], ORB_Y, ORB_R * (0.4 + a * 0.5), gravSide > 0 ? "#4dd2ff" : "#ff5e7e");
+      glowCircle(orb.trail[i].x, ORB_Y, ORB_R * (0.4 + a * 0.5), gravSide > 0 ? "#4dd2ff" : "#ff5e7e");
     }
     ctx.globalAlpha = 1;
     glowCircle(orb.x, ORB_Y, ORB_R, gravSide > 0 ? "#4dd2ff" : "#ff5e7e", true);
@@ -717,6 +829,7 @@
     // Shed some momentum on flip so the reversal registers immediately,
     // making the back-and-forth feel reactive rather than floaty.
     orb.vx *= 0.55;
+    orb.vy *= 0.55;          // shed vertical momentum too (Orbital 3)
     sfx("flip");
     buzz("light");
   }

@@ -263,12 +263,12 @@ const api = {
     // (bloom turns this into a lightsaber-like shaft)
     pullLine = new THREE.Group();
     const beamCore = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.045, 0.045, 1, 8),
+      new THREE.CylinderGeometry(0.032, 0.032, 1, 8),
       new THREE.MeshBasicMaterial({ color: 0xffffff })
     );
     const beamGlow = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.16, 0.16, 1, 16),
-      new THREE.MeshBasicMaterial({ color: 0x4dd2ff, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false })
+      new THREE.CylinderGeometry(0.11, 0.11, 1, 16),
+      new THREE.MeshBasicMaterial({ color: 0x4dd2ff, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false })
     );
     pullLine.add(beamCore, beamGlow);
     pullLine.userData.glow = beamGlow.material;

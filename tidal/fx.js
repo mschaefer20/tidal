@@ -70,9 +70,9 @@
       tone({ freq: 262, type: "triangle", dur: 0.13, gain: 0.18, delay: 0.05 });
     },
     crash() {
-      tone({ freq: 150, type: "sawtooth", dur: 0.6, gain: 0.40, to: 42 });
-      tone({ freq: 60, type: "sine", dur: 0.5, gain: 0.35, to: 34 });
-      noise(0.4, 0.16);
+      tone({ freq: 300, type: "sine", dur: 0.55, gain: 0.24, to: 70 });   // soft descending fall
+      tone({ freq: 78, type: "sine", dur: 0.5, gain: 0.26, to: 40 });     // low thud
+      noise(0.14, 0.07);                                                  // faint texture
     },
     shift() {
       tone({ freq: 70, type: "sawtooth", dur: 1.1, gain: 0.30, to: 180 });
@@ -80,8 +80,7 @@
       noise(0.6, 0.10);
     },
     start() {
-      tone({ freq: 160, type: "triangle", dur: 0.14, gain: 0.22 });
-      tone({ freq: 120, type: "sine", dur: 0.18, gain: 0.18, delay: 0.06 });
+      tone({ freq: 130, type: "sine", dur: 0.32, gain: 0.16, to: 196 });  // gentle low swell
     },
   };
 

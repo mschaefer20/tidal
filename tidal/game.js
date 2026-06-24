@@ -222,7 +222,7 @@
       build3DField();
       show3D();
     } else {
-      intro = 1;
+      intro = n === 5 ? 0 : 1;   // the arena gets a settle-in intro
       hide3D();
       if (n === 5) buildArena(); else build2DField();
     }
@@ -238,7 +238,7 @@
     const big = el.querySelector(".big");
     const small = el.querySelector(".small");
     if (big) big.textContent = ORBITAL_LABEL[n] || "ORBITAL";
-    if (small) small.textContent = ORBITALS[n - 1].dim === "3d" ? "3D" : "2D";
+    if (small) small.textContent = "";
     el.classList.remove("run");
     void el.offsetWidth;        // restart the CSS animation
     el.classList.add("run");
@@ -521,6 +521,17 @@
 
   function updateArena(dt) {
     const fromOrbital = orbital;
+
+    // Intro: hold still while the scene settles (the hole charges ominously),
+    // then release into play.
+    if (intro < 1) {
+      orb.x = ARENA.x + Math.cos(orb.theta) * orb.rho;
+      orb.y = ARENA.y + Math.sin(orb.theta) * orb.rho;
+      orb.trail.push({ x: orb.x, y: orb.y });
+      if (orb.trail.length > 22) orb.trail.shift();
+      return;
+    }
+
     arenaTime += dt;
 
     // boss attack: scheduled gravity surges (telegraphed, then strong inward pull)
@@ -549,7 +560,7 @@
 
     orb.trail.push({ x: orb.x, y: orb.y });
     if (orb.trail.length > 22) orb.trail.shift();
-    if (shake > 0) shake = Math.max(0, shake - dt * 60);
+    shake = surge && surge.phase === "active" ? 7 : 2.2;   // ominous constant tremor
 
     // death: pulled into the hole, or flung past the rim
     if (orb.rho <= ARENA.rEvent + ORB_R * 0.3 || orb.rho >= ARENA.rArena) return die();
@@ -783,11 +794,29 @@
     const cx = ARENA.x, cy = ARENA.y;
     const charging = surge && surge.phase === "charge";
     const active = surge && surge.phase === "active";
+    const intro5 = intro < 1;
+
+    // ominous backdrop: near-black with a deep red glow welling from the hole
+    ctx.fillStyle = "#05030a";
+    ctx.fillRect(-12, -12, W + 24, H + 24);
+    const bg = ctx.createRadialGradient(cx, cy, 16, cx, cy, 300);
+    bg.addColorStop(0, "rgba(72,10,16,0.9)");
+    bg.addColorStop(1, "rgba(8,4,12,0)");
+    ctx.fillStyle = bg;
+    ctx.fillRect(-12, -12, W + 24, H + 24);
 
     // arena boundary (deadly outer edge)
     ctx.strokeStyle = "rgba(255,80,90,0.22)";
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(cx, cy, ARENA.rArena, 0, TAU); ctx.stroke();
+
+    // intro charge-up: a pulsing ring tightening onto the hole
+    if (intro5) {
+      const p = 0.5 + 0.5 * Math.sin(intro * 26);
+      ctx.strokeStyle = `rgba(255,90,40,${0.25 + p * 0.4})`;
+      ctx.lineWidth = 2 + p * 2;
+      ctx.beginPath(); ctx.arc(cx, cy, ARENA.rEvent * (4.5 - intro * 3), 0, TAU); ctx.stroke();
+    }
 
     // accretion glow (brightens while a surge charges / fires)
     const glowR = ARENA.rEvent * (active ? 3.6 : charging ? 2.6 + Math.sin(arenaTime * 22) * 0.5 : 2.2);
@@ -796,6 +825,19 @@
     grd.addColorStop(1, "rgba(255,80,30,0)");
     ctx.fillStyle = grd;
     ctx.beginPath(); ctx.arc(cx, cy, glowR, 0, TAU); ctx.fill();
+
+    // swirling accretion streaks spiralling around the hole
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(arenaTime * 0.9 + intro * 3);
+    ctx.strokeStyle = "rgba(255,120,40,0.5)";
+    ctx.lineWidth = 3;
+    for (let k = 0; k < 3; k++) {
+      ctx.beginPath();
+      ctx.arc(0, 0, ARENA.rEvent * (1.45 + k * 0.55), k * 2.1, k * 2.1 + 2.3);
+      ctx.stroke();
+    }
+    ctx.restore();
 
     // photon ring + event horizon
     ctx.strokeStyle = "rgba(255,232,205,0.9)"; ctx.lineWidth = 3;
@@ -837,10 +879,17 @@
     ctx.globalAlpha = 1;
     glowCircle(orb.x, orb.y, ORB_R, color, true);
 
+    // dark vignette to close the edges in (oppressive)
+    const vg = ctx.createRadialGradient(cx, cy, 130, cx, cy, 330);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(0,0,0,0.5)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(-12, -12, W + 24, H + 24);
+
     // surge screen tint
     if (active) {
-      ctx.fillStyle = "rgba(255,60,30,0.10)";
-      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = "rgba(255,60,30,0.12)";
+      ctx.fillRect(-12, -12, W + 24, H + 24);
     }
   }
 
@@ -974,8 +1023,9 @@
     let dt = (now - lastT) / 1000;
     lastT = now;
     if (dt > 0.05) dt = 0.05;     // clamp after tab-switch / hitch
-    // transition fly-in runs on real time (independent of slow-mo)
+    // transition fly-in / intro runs on real time (independent of slow-mo)
     if (mode === "3d" && intro < 1) intro = Math.min(1, intro + dt / 4.0);
+    else if (orbital === 5 && intro < 1) intro = Math.min(1, intro + dt / 2.0);
     update(dt * timeScale);       // global pace multiplier
     if (running) draw();
     rafId = requestAnimationFrame(loop);

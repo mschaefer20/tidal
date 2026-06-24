@@ -36,6 +36,10 @@ workflows:
           if [ ! -d "ios" ]; then npx cap add ios; fi
       - name: Sync web assets + plugins into the native project
         script: npx cap sync ios
+      - name: Declare encryption compliance (no custom encryption)
+        script: |
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" ios/App/App/Info.plist \
+            || /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" ios/App/App/Info.plist
       - name: Generate app icon & splash
         script: npx capacitor-assets generate --ios || true
       - name: Install CocoaPods
@@ -67,5 +71,8 @@ workflows:
         api_key: $APP_STORE_CONNECT_PRIVATE_KEY
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
-        submit_to_testflight: true
+        # Upload only. The build is then available to INTERNAL TestFlight testers
+        # immediately (no beta review). To enable EXTERNAL testers, fill in the
+        # TestFlight test info in App Store Connect, then set this to true.
+        submit_to_testflight: false
         # submit_to_app_store: false   # flip to true once you're ready to release

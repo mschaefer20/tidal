@@ -27,6 +27,7 @@ const GN = 46;
 let renderer, scene, camera, composer, bloom;
 let orbMesh, orbLight, leftLight, rightLight;
 let floorGrid, ceilGrid;
+let wellL, wellR, pullLine;   // Orbital 4: visible gravity wells + pull line
 let barPool = [], bonusPool = [];
 let toonMap;
 let inited = false;
@@ -250,6 +251,18 @@ const api = {
     orbLight = new THREE.PointLight(TEAL, 6, 18, 2);
     orbMesh.add(orbLight);
 
+    // Orbital 4: the two oscillating gravity wells + a pull line to the active one
+    const wellGeo = new THREE.SphereGeometry(0.62, 24, 24);
+    wellL = new THREE.Mesh(wellGeo, new THREE.MeshStandardMaterial({ color: 0x3a1020, emissive: 0xff5e7e, emissiveIntensity: 1.0 }));
+    wellR = new THREE.Mesh(wellGeo, new THREE.MeshStandardMaterial({ color: 0x0a2230, emissive: 0x4dd2ff, emissiveIntensity: 1.0 }));
+    wellL.visible = wellR.visible = false;
+    scene.add(wellL, wellR);
+    const lineGeo = new THREE.BufferGeometry();
+    lineGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(6), 3));
+    pullLine = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 }));
+    pullLine.visible = false;
+    scene.add(pullLine);
+
     for (let i = 0; i < BAR_POOL; i++) barPool.push({ left: makeBlock(), right: makeBlock() });
 
     // bonus coins — 3D gold discs in the same soft (non-glossy) finish as the orb
@@ -303,6 +316,26 @@ const api = {
     orbMesh.material.color.copy(side).multiplyScalar(0.45);
     orbLight.color.copy(side);
     orbMesh.position.set(s.orbNX * HALFW, (s.orbNY || 0) * FY, 0);   // orbNY drives Orbital 4's vertical drift
+
+    // Orbital 4: show the two gravity wells + a line to the active one
+    if (s.wellL) {
+      const lx = s.wellL.x * HALFW, ly = s.wellL.y * FY;
+      const rx = s.wellR.x * HALFW, ry = s.wellR.y * FY;
+      wellL.position.set(lx, ly, 0);
+      wellR.position.set(rx, ry, 0);
+      wellL.visible = wellR.visible = true;
+      wellL.material.emissiveIntensity = s.gravSide < 0 ? 2.0 : 0.55;
+      wellR.material.emissiveIntensity = s.gravSide > 0 ? 2.0 : 0.55;
+      const ax = s.gravSide > 0 ? rx : lx, ay = s.gravSide > 0 ? ry : ly;
+      const p = pullLine.geometry.attributes.position;
+      p.setXYZ(0, s.orbNX * HALFW, (s.orbNY || 0) * FY, 0);
+      p.setXYZ(1, ax, ay, 0);
+      p.needsUpdate = true;
+      pullLine.material.color.set(s.gravSide > 0 ? 0x4dd2ff : 0xff5e7e);
+      pullLine.visible = true;
+    } else if (wellL) {
+      wellL.visible = wellR.visible = pullLine.visible = false;
+    }
 
     // intro fly-in — slow, cinematic rush from deep space into the tunnel
     const ip = Math.min(1, s.intro);

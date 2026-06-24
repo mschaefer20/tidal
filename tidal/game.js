@@ -285,6 +285,8 @@
     return {
       orbNX: Math.max(-1.2, Math.min(1.2, nx(orb.x))),
       orbNY: orbital === 4 ? (orb.y - H / 2) / (H / 2) : 0,
+      wellL: orbital === 4 ? { x: nx(gpL.x), y: (gpL.y - H / 2) / (H / 2) } : null,
+      wellR: orbital === 4 ? { x: nx(gpR.x), y: (gpR.y - H / 2) / (H / 2) } : null,
       gravSide,
       intro,
       travel,

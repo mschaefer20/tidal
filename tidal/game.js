@@ -67,7 +67,9 @@
   const ARENA = { x: W / 2, y: H * 0.46, rEvent: 30, rArena: 196 };
   const ARENA_G = 1000;              // radial accel (a tap flips attract <-> repel)
   const ARENA_MAXV = 470;            // 2D speed cap
-  const ARENA_DEBRIS = 5;            // starting debris count
+  const DEBRIS_FIRST = 2.5;          // delay before the first debris (arena starts empty)
+  const DEBRIS_SPEED0 = 50;          // initial inward speed of falling debris
+  const DEBRIS_GRAV = 85;            // inward acceleration (pulled toward the hole)
   const SURGE_EVERY = 6;             // seconds between gravity-surge attacks
   const SURGE_CHARGE = 0.8;          // telegraph time before a surge
   const SURGE_ACTIVE = 1.4;          // surge duration
@@ -144,7 +146,7 @@
   let orb, gravSide, bars, bonuses, scroll, score, running, lastT, rafId, shake, paused;
   let mode, depthSpeed, flash, intro, travel, orbital;
   let g3Time, gpL, gpR;   // Orbital 3: oscillation clock + live planet positions
-  let arenaTime, scoreClock, debris, coins, surge, nextSurge;   // Orbital 5 arena
+  let arenaTime, scoreClock, debris, coins, surge, nextSurge, nextDebris;   // Orbital 5 arena
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
 
   const BEST_KEY = "tidal-best";
@@ -180,7 +182,7 @@
     gpL = { x: G3_LEFT.x, y: G3_LEFT.y };
     gpR = { x: G3_RIGHT.x, y: G3_RIGHT.y };
     arenaTime = 0; scoreClock = 0; surge = null; nextSurge = SURGE_EVERY;
-    debris = []; coins = [];
+    nextDebris = DEBRIS_FIRST; debris = []; coins = [];
     if (mode === "3d") build3DField(); else { hide3D(); build2DField(); }
     if (window.TidalFX) TidalFX.setOrbital(orbital);
     scoreEl.textContent = score;
@@ -487,9 +489,10 @@
   function spawnDebris() {
     debris.push({
       ang: Math.random() * TAU,
-      r: 70 + Math.random() * 105,
-      spd: (Math.random() < 0.5 ? -1 : 1) * (0.4 + Math.random() * 0.8),
-      size: 9 + Math.random() * 8,
+      r: ARENA.rArena - 4,                 // spawns at the rim
+      vr: -DEBRIS_SPEED0,                  // falling inward
+      vAng: (Math.random() - 0.5) * 0.5,   // slight sideways drift
+      size: 9 + Math.random() * 7,
     });
   }
   function spawnCoin(c) {
@@ -503,11 +506,12 @@
   }
   function buildArena() {
     arenaTime = 0; scoreClock = 0; surge = null; nextSurge = SURGE_EVERY;
+    nextDebris = DEBRIS_FIRST;    // starts empty; debris arrives gradually
     orb.x = ARENA.x; orb.y = ARENA.y - 115;
     orb.vx = 340; orb.vy = 0;     // ~circular orbit velocity: sqrt(ARENA_G * r)
     orb.trail = [];
     gravSide = 1;                 // start by attracting
-    debris = []; for (let i = 0; i < ARENA_DEBRIS; i++) spawnDebris();
+    debris = [];
     coins = []; for (let i = 0; i < 3; i++) spawnCoin();
   }
 
@@ -550,9 +554,18 @@
     const r = Math.hypot(orb.x - ARENA.x, orb.y - ARENA.y);
     if (r <= ARENA.rEvent + ORB_R * 0.3 || r >= ARENA.rArena) return die();
 
-    // orbiting debris
-    for (const d of debris) {
-      d.ang += d.spd * dt;
+    // debris falls inward from the rim — spawns gradually, faster over time
+    nextDebris -= dt;
+    if (nextDebris <= 0) {
+      spawnDebris();
+      nextDebris = Math.max(0.55, 2.4 - arenaTime * 0.05);
+    }
+    for (let i = debris.length - 1; i >= 0; i--) {
+      const d = debris[i];
+      d.vr -= DEBRIS_GRAV * gMult * dt;     // accelerates toward the hole (harder mid-surge)
+      d.r += d.vr * dt;
+      d.ang += d.vAng * dt;
+      if (d.r <= ARENA.rEvent) { debris.splice(i, 1); continue; }   // consumed by the hole
       const ex = ARENA.x + Math.cos(d.ang) * d.r, ey = ARENA.y + Math.sin(d.ang) * d.r;
       const a = ex - orb.x, b = ey - orb.y;
       if (a * a + b * b < (ORB_R + d.size) * (ORB_R + d.size)) return die();
@@ -578,9 +591,6 @@
       addScore(1);
       if (orbital !== fromOrbital) return;
     }
-
-    // slowly escalate the debris field
-    if (debris.length < ARENA_DEBRIS + Math.floor(arenaTime / 12) && debris.length < 11) spawnDebris();
   }
 
   // ---- 3D simulation -------------------------------------------------------

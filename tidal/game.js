@@ -58,6 +58,11 @@
   const DEPTH_SPEED_MAX = 6.3;
   const DEPTH_ACCEL = 0.112;
 
+  // Orbital 4 "Drift": gaps slide horizontally as barriers approach, + faster.
+  const GAP_DRIFT_AMP = 70;          // how far a gap slides from its base
+  const GAP_DRIFT_FREQ = 0.55;       // slide speed (vs world travel)
+  const O4_SPEED_MULT = 1.25;        // extra tunnel speed for orbitals 4+
+
   // ---- Orbital 3 "Binary" tunables (2D multi-gravity) ----------------------
   // Two planets offset diagonally so the pull is 2D: left tugs up-left,
   // right tugs down-right → curved, two-axis motion. Top/bottom are deadly.
@@ -299,10 +304,18 @@
   // Same barrier, positioned by depth instead of y (3D mode).
   function spawnBar3D(d) {
     const gap = gapWidth();
-    const gapX = randomGapX(gap);
-    bars.push({ d, gapX, gapW: gap, passed: false });
+    let baseX;
+    if (orbital === 4) {
+      // keep the gap's full oscillation within the walls (always passable)
+      const lo = WALL + 10 + GAP_DRIFT_AMP;
+      const hi = W - WALL - 10 - gap - GAP_DRIFT_AMP;
+      baseX = lo + Math.random() * Math.max(0, hi - lo);
+    } else {
+      baseX = randomGapX(gap);
+    }
+    bars.push({ d, gapX: baseX, baseX, phase: Math.random() * Math.PI * 2, gapW: gap, passed: false });
     if (Math.random() < 0.6) {
-      const bx = gapX + Math.random() * gap;
+      const bx = baseX + Math.random() * gap;
       bonuses.push({ x: bx, d: d - DEPTH_SPACING / 2, taken: false });
     }
   }
@@ -458,7 +471,8 @@
   // ---- 3D simulation -------------------------------------------------------
   function update3D(dt) {
     const fromOrbital = orbital;
-    depthSpeed = Math.min(DEPTH_SPEED_MAX, depthSpeed + DEPTH_ACCEL * dt);
+    const speedCap = DEPTH_SPEED_MAX * (orbital >= 4 ? O4_SPEED_MULT : 1);
+    depthSpeed = Math.min(speedCap, depthSpeed + DEPTH_ACCEL * dt);
 
     // Hold the orb dead-center for the first ~2.4s of the 3D intro, then release
     // it to gravity — a clear beat to see it before it starts drifting.
@@ -478,6 +492,13 @@
     travel += dd;                 // drives the tunnel scroll in the WebGL view
     for (const b of bars) b.d -= dd;
     for (const o of bonuses) o.d -= dd;
+
+    // Orbital 4: slide each barrier's gap horizontally as it approaches
+    if (orbital === 4) {
+      for (const b of bars) {
+        b.gapX = b.baseX + GAP_DRIFT_AMP * Math.sin(travel * GAP_DRIFT_FREQ + b.phase);
+      }
+    }
 
     // collisions / scoring as barriers reach the camera plane (d crossing 0)
     for (const b of bars) {

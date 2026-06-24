@@ -310,7 +310,8 @@ const api = {
     camera.position.z = (s.reduceMotion ? 16 : 54) - (s.reduceMotion ? 7 : 45) * e;
     camera.position.x = 0;           // locked: tunnel stays fixed, only the orb moves
     camera.lookAt(0, -0.3, -6);
-    bloom.strength = 0.32 + (s.reduceMotion ? 0 : (1 - e) * 0.8);   // extra glow during the warp
+    const orbitalGlow = (s.orbital >= 4 ? 0.18 : 0) + (s.orbital >= 5 ? 0.18 : 0);
+    bloom.strength = 0.32 + orbitalGlow + (s.reduceMotion ? 0 : (1 - e) * 0.8); // glow rises with orbital + warp
 
     const gz = (s.travel * DZ) % GS;
     floorGrid.position.z = gz;

@@ -150,8 +150,11 @@
   // ---- State ---------------------------------------------------------------
   let orb, gravSide, bars, bonuses, scroll, score, running, lastT, rafId, shake, paused;
   let mode, depthSpeed, flash, intro, travel, orbital, countdown, invuln;
+  let continues, adUsed;        // continue ladder: count this run + whether the ad was used
   const COUNTDOWN_TIME = 3.0;   // wait + 3-2-1 before each new orbital (2-5)
-  const CONTINUE_COST = 100;    // coins per continue
+  const CONTINUE_COST = 100;    // base coins per continue
+  // First continue is free via ad (once per run); coin cost doubles each time.
+  function continueCost() { return CONTINUE_COST * Math.pow(2, continues); }
   let g3Time, gpL, gpR;   // Orbital 3: oscillation clock + live planet positions
   let arenaTime, scoreClock, debris, coins, surge, nextSurge, nextDebris, escaped;   // Orbital 5 arena
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
@@ -190,6 +193,8 @@
     depthSpeed = DEPTH_SPEED_START;
     countdown = 0;
     invuln = 0;
+    continues = 0;
+    adUsed = false;
     g3Time = 0;
     gpL = { x: G3_LEFT.x, y: G3_LEFT.y };
     gpR = { x: G3_RIGHT.x, y: G3_RIGHT.y };
@@ -1181,8 +1186,11 @@
     screens.continue.classList.remove("hidden");
   }
   function refreshContinue() {
+    const cost = continueCost();
     const coinsBtn = document.getElementById("cont-coins");
-    if (coinsBtn) coinsBtn.disabled = coinsNow() < CONTINUE_COST;
+    if (coinsBtn) { coinsBtn.textContent = cost + " Coins"; coinsBtn.disabled = coinsNow() < cost; }
+    const adBtn = document.getElementById("cont-ad");
+    if (adBtn) adBtn.hidden = adUsed;          // ad continue is once per run
     const unlimBtn = document.getElementById("cont-unlim");
     if (unlimBtn) unlimBtn.hidden = !(window.TidalStore && TidalStore.hasUnlimited());
     setText("coin-balance", coinsNow() + " coins");
@@ -1304,18 +1312,18 @@
       e.stopPropagation();
       const a = b.dataset.cont;
       if (a === "giveup") { gameOver(); return; }
-      if (a === "unlimited") { doContinue(); return; }
+      if (a === "unlimited") { continues++; doContinue(); return; }
       if (a === "coins") {
-        if (window.TidalStore && TidalStore.spendCoins(CONTINUE_COST)) doContinue();
+        if (window.TidalStore && TidalStore.spendCoins(continueCost())) { continues++; doContinue(); }
         else refreshContinue();
         return;
       }
       if (a === "ad") {
-        if (!window.TidalStore) return;
+        if (!window.TidalStore || adUsed) return;
         b.disabled = true; b.textContent = "Loading ad…";
         TidalStore.watchAd().then((ok) => {
           b.disabled = false; b.innerHTML = "&#9654; Watch Ad";
-          if (ok) doContinue();
+          if (ok) { adUsed = true; continues++; doContinue(); }
         });
       }
     });

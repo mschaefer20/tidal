@@ -175,6 +175,7 @@ html, body {
   transition: transform 0.08s ease, filter 0.15s ease;
 }
 .btn:active { transform: scale(0.96); filter: brightness(1.1); }
+.btn:disabled { opacity: 0.4; pointer-events: none; }
 .btn.ghost {
   color: var(--text);
   background: transparent;

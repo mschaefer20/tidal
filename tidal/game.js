@@ -108,6 +108,8 @@
     title: document.getElementById("screen-title"),
     howto: document.getElementById("screen-howto"),
     settings: document.getElementById("screen-settings"),
+    continue: document.getElementById("screen-continue"),
+    shop: document.getElementById("screen-shop"),
   };
 
   // ---- Settings (persisted) ------------------------------------------------
@@ -147,8 +149,9 @@
 
   // ---- State ---------------------------------------------------------------
   let orb, gravSide, bars, bonuses, scroll, score, running, lastT, rafId, shake, paused;
-  let mode, depthSpeed, flash, intro, travel, orbital, countdown;
+  let mode, depthSpeed, flash, intro, travel, orbital, countdown, invuln;
   const COUNTDOWN_TIME = 3.0;   // wait + 3-2-1 before each new orbital (2-5)
+  const CONTINUE_COST = 100;    // coins per continue
   let g3Time, gpL, gpR;   // Orbital 3: oscillation clock + live planet positions
   let arenaTime, scoreClock, debris, coins, surge, nextSurge, nextDebris, escaped;   // Orbital 5 arena
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
@@ -186,6 +189,7 @@
     intro = mode === "3d" ? 0 : 1;
     depthSpeed = DEPTH_SPEED_START;
     countdown = 0;
+    invuln = 0;
     g3Time = 0;
     gpL = { x: G3_LEFT.x, y: G3_LEFT.y };
     gpR = { x: G3_RIGHT.x, y: G3_RIGHT.y };
@@ -343,6 +347,7 @@
   // ---- Simulation ----------------------------------------------------------
   function update(dt) {
     if (flash > 0) flash = Math.max(0, flash - dt * 1.6);
+    if (invuln > 0) invuln = Math.max(0, invuln - dt);
     if (mode === "3d") return update3D(dt);
     if (orbital === 5) return updateArena(dt);
     if (orbital === 3) return updateBinary(dt);
@@ -415,7 +420,7 @@
       if (cx * cx + cy * cy < (ORB_R + 9) * (ORB_R + 9)) {
         o.taken = true;
         addScore(5);
-        sfx("coin"); buzz("light");
+        sfx("coin"); buzz("light"); if (window.TidalStore) TidalStore.addCoins(1);
       }
     }
   }
@@ -510,7 +515,7 @@
       if (dx * dx + dyo * dyo < (ORB_R + 9) * (ORB_R + 9)) {
         o.taken = true;
         addScore(5);
-        sfx("coin"); buzz("light");
+        sfx("coin"); buzz("light"); if (window.TidalStore) TidalStore.addCoins(1);
       }
     }
   }
@@ -697,7 +702,7 @@
       if (o.d <= 0.5 && o.d > -0.5 && Math.abs(o.x - orb.x) < ORB_R + 12) {
         o.taken = true;
         addScore(5);
-        sfx("coin"); buzz("light");
+        sfx("coin"); buzz("light"); if (window.TidalStore) TidalStore.addCoins(1);
       }
     }
 
@@ -1140,23 +1145,65 @@
   }
 
   function die() {
+    if (invuln > 0) return;          // protected right after a continue
     running = false;
     shake = settings.reduceMotion ? 4 : 10;
     draw();
     cancelAnimationFrame(rafId);
     pauseBtn.classList.remove("show");
+    sfx("crash");
+    buzz("heavy");
+    showContinue();                  // offer a continue before finalizing
+  }
+
+  // ---- Continue / Shop -----------------------------------------------------
+  function coinsNow() { return window.TidalStore ? TidalStore.getCoins() : 0; }
+  function setText(id, txt) { const el = document.getElementById(id); if (el) el.textContent = txt; }
+
+  function showContinue() {
+    overlay.classList.add("hidden");
+    hideScreens();
+    setText("continue-score", "Score " + score);
+    refreshContinue();
+    screens.continue.classList.remove("hidden");
+  }
+  function refreshContinue() {
+    const coinsBtn = document.getElementById("cont-coins");
+    if (coinsBtn) coinsBtn.disabled = coinsNow() < CONTINUE_COST;
+    const unlimBtn = document.getElementById("cont-unlim");
+    if (unlimBtn) unlimBtn.hidden = !(window.TidalStore && TidalStore.hasUnlimited());
+    setText("coin-balance", coinsNow() + " coins");
+  }
+
+  function doContinue() {
+    screens.continue.classList.add("hidden");
+    invuln = 2.0;                    // brief grace after the revive countdown
+    enterOrbital(orbital);           // rebuild the current orbital cleanly + 3-2-1
+    resume();
+  }
+
+  function gameOver() {
+    screens.continue.classList.add("hidden");
     if (score > best) {
       best = score;
       localStorage.setItem(BEST_KEY, String(best));
       bestEl.textContent = best;
     }
-    if (window.TidalGC) TidalGC.submit(score);   // post to Game Center leaderboard
+    if (window.TidalGC) TidalGC.submit(score);
     overlayTitle.textContent = "Game Over";
     overlayText.textContent = `Score ${score}${score >= best && score > 0 ? " — new best!" : ""}`;
     startBtn.textContent = "Play again";
     overlay.classList.remove("hidden");
-    sfx("crash");
-    buzz("heavy");
+  }
+
+  function refreshShop() {
+    setText("shop-balance", coinsNow() + " coins");
+    const u = document.getElementById("shop-unlim");
+    if (u) {
+      const owned = window.TidalStore && TidalStore.hasUnlimited();
+      u.textContent = owned ? "Unlimited Continues — Owned ✓" : "Unlimited Continues — $19.99";
+      u.disabled = !!owned;
+    }
   }
 
   // ---- Menu / screen management -------------------------------------------
@@ -1175,6 +1222,7 @@
     reset();
     draw();
     showScreen("title");
+    refreshCoinsUI();
   }
 
   function refreshToggles() {
@@ -1231,10 +1279,49 @@
       else if (a === "devplay") { devMode = true; start(); }
       else if (a === "howto") showScreen("howto");
       else if (a === "settings") { refreshToggles(); showScreen("settings"); }
-      else if (a === "back") showScreen("title");
+      else if (a === "shop") { refreshShop(); showScreen("shop"); }
+      else if (a === "back") { showScreen("title"); refreshCoinsUI(); }
       else if (a === "leaderboard") { if (window.TidalGC) TidalGC.show(); }
     });
   });
+
+  // Continue-screen buttons
+  document.querySelectorAll("[data-cont]").forEach((b) => {
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const a = b.dataset.cont;
+      if (a === "giveup") { gameOver(); return; }
+      if (a === "unlimited") { doContinue(); return; }
+      if (a === "coins") {
+        if (window.TidalStore && TidalStore.spendCoins(CONTINUE_COST)) doContinue();
+        else refreshContinue();
+        return;
+      }
+      if (a === "ad") {
+        if (!window.TidalStore) return;
+        b.disabled = true; b.textContent = "Loading ad…";
+        TidalStore.watchAd().then((ok) => {
+          b.disabled = false; b.innerHTML = "&#9654; Watch Ad";
+          if (ok) doContinue();
+        });
+      }
+    });
+  });
+
+  // Shop buttons
+  document.querySelectorAll("[data-shop]").forEach((b) => {
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!window.TidalStore) return;
+      const a = b.dataset.shop;
+      if (a === "unlimited") TidalStore.buyUnlimited().then(refreshShop);
+      else if (a === "coins500") TidalStore.buyCoins(500).then(refreshShop);
+      else if (a === "coins1500") TidalStore.buyCoins(1500).then(refreshShop);
+      else if (a === "restore") TidalStore.restore().then(refreshShop);
+    });
+  });
+
+  function refreshCoinsUI() { setText("title-coins", coinsNow() + " coins"); }
 
   // Leaderboard button on the game-over / pause overlay
   const lbOver = document.getElementById("lb-over");
@@ -1304,6 +1391,7 @@
   reset();
   draw();
   showScreen("title");
+  refreshCoinsUI();
 
   // ---- PWA registration ----------------------------------------------------
   if ("serviceWorker" in navigator) {

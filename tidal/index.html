@@ -43,9 +43,11 @@
         <p class="tagline">One button. Two gravities.</p>
         <button class="btn" data-action="play">Play</button>
         <button class="btn ghost" data-action="devplay">Dev Play</button>
+        <button class="btn ghost" data-action="shop">Shop</button>
         <button class="btn ghost" data-action="leaderboard" id="lb-title" hidden>Leaderboard</button>
         <button class="btn ghost" data-action="howto">How to Play</button>
         <button class="btn ghost" data-action="settings">Settings</button>
+        <p class="hint" id="title-coins"></p>
       </section>
 
       <!-- How to play -->
@@ -73,6 +75,28 @@
         <button class="btn" data-action="back">Back</button>
       </section>
 
+      <!-- Continue? (shown on death) -->
+      <section id="screen-continue" class="screen hidden">
+        <h2>Continue?</h2>
+        <p id="continue-score" class="tagline"></p>
+        <button class="btn" data-cont="ad">&#9654; Watch Ad</button>
+        <button class="btn" id="cont-coins" data-cont="coins">100 Coins</button>
+        <button class="btn" id="cont-unlim" data-cont="unlimited" hidden>Continue</button>
+        <button class="btn ghost" data-cont="giveup">Give Up</button>
+        <p class="hint" id="coin-balance"></p>
+      </section>
+
+      <!-- Shop -->
+      <section id="screen-shop" class="screen hidden">
+        <h2>Shop</h2>
+        <p class="hint" id="shop-balance"></p>
+        <button class="btn" id="shop-unlim" data-shop="unlimited">Unlimited Continues &mdash; $19.99</button>
+        <button class="btn ghost" data-shop="coins500">500 Coins &mdash; $1.99</button>
+        <button class="btn ghost" data-shop="coins1500">1500 Coins &mdash; $4.99</button>
+        <button class="btn ghost" data-shop="restore">Restore Purchases</button>
+        <button class="btn ghost" data-action="back">Back</button>
+      </section>
+
       <!-- In-game overlay: game over / pause -->
       <div id="overlay" class="overlay hidden">
         <h2 id="overlay-title">Paused</h2>
@@ -87,6 +111,7 @@
   </div>
 
   <script src="fx.js"></script>
+  <script src="store.js"></script>
   <script src="gamecenter.js"></script>
   <!-- Map the bare "three" specifier used by the vendored add-ons. -->
   <script type="importmap">

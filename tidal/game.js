@@ -110,6 +110,7 @@
     settings: document.getElementById("screen-settings"),
     continue: document.getElementById("screen-continue"),
     shop: document.getElementById("screen-shop"),
+    practice: document.getElementById("screen-practice"),
   };
 
   // ---- Settings (persisted) ------------------------------------------------
@@ -172,6 +173,14 @@
   // Dev mode = compressed thresholds (10 per orbital). Toggled by the Dev Play
   // button, the dev shortcuts, or ?dev / ?orbital / ?3d in the URL.
   let devMode = params.has("dev") || DEV_START_3D || DEV_START_ORBITAL > 0;
+  // Practice = replaying an unlocked orbital; such runs aren't ranked.
+  let practice = false;
+  // Highest orbital the player has legitimately reached (persisted).
+  const UNLOCK_KEY = "tidal-unlocked";
+  let unlocked = Math.max(1, Math.min(5, Number(localStorage.getItem(UNLOCK_KEY) || 1)));
+  function setUnlocked(n) {
+    if (n > unlocked) { unlocked = n; localStorage.setItem(UNLOCK_KEY, String(unlocked)); }
+  }
 
   // Persists across runs (it's a setting, not part of a game).
   let timeScale = params.has("slow") ? SPEED_DEV : SPEED_NORMAL;
@@ -223,6 +232,7 @@
   // transition. Works for any 2D⇄3D combination.
   function enterOrbital(n) {
     orbital = n;
+    setUnlocked(n);
     mode = ORBITALS[n - 1].dim;
     flash = settings.reduceMotion ? 0.25 : 1;
     countdown = COUNTDOWN_TIME;   // wait + countdown before the new orbital begins
@@ -1203,14 +1213,18 @@
 
   function gameOver() {
     screens.continue.classList.add("hidden");
-    if (score > best) {
+    // Practice and dev runs don't count toward best / leaderboard.
+    const ranked = !practice && !devMode;
+    if (ranked && score > best) {
       best = score;
       localStorage.setItem(BEST_KEY, String(best));
       bestEl.textContent = best;
     }
-    if (window.TidalGC) TidalGC.submit(score);
-    overlayTitle.textContent = "Game Over";
-    overlayText.textContent = `Score ${score}${score >= best && score > 0 ? " — new best!" : ""}`;
+    if (ranked && window.TidalGC) TidalGC.submit(score);
+    overlayTitle.textContent = ranked ? "Game Over" : "Practice Over";
+    overlayText.textContent = ranked
+      ? `Score ${score}${score >= best && score > 0 ? " — new best!" : ""}`
+      : `Score ${score}`;
     startBtn.textContent = "Play again";
     overlay.classList.remove("hidden");
   }
@@ -1285,7 +1299,11 @@
   document.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
 
   canvas.addEventListener("pointerdown", onPress);
-  startBtn.addEventListener("click", (e) => { e.stopPropagation(); primaryAction(); });
+  startBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (!paused) { practice = false; devMode = false; }   // "Play again" = fresh ranked run
+    primaryAction();
+  });
   menuBtn.addEventListener("click", (e) => { e.stopPropagation(); goMenu(); });
   pauseBtn.addEventListener("click", (e) => { e.stopPropagation(); pauseGame(); });
 
@@ -1294,8 +1312,9 @@
     b.addEventListener("click", (e) => {
       e.stopPropagation();
       const a = b.dataset.action;
-      if (a === "play") { devMode = false; start(); }
-      else if (a === "devplay") { devMode = true; start(); }
+      if (a === "play") { practice = false; devMode = false; start(); }
+      else if (a === "devplay") { practice = false; devMode = true; start(); }
+      else if (a === "practice") showPractice();
       else if (a === "howto") showScreen("howto");
       else if (a === "settings") { refreshToggles(); showScreen("settings"); }
       else if (a === "shop") { refreshShop(); showScreen("shop"); }
@@ -1340,6 +1359,32 @@
   });
 
   function refreshCoinsUI() { setText("title-coins", coinsNow() + " coins"); }
+
+  // ---- Practice: replay any unlocked orbital (not ranked) ------------------
+  function showPractice() {
+    const list = document.getElementById("practice-list");
+    if (list) {
+      list.innerHTML = "";
+      for (let n = 1; n <= unlocked; n++) {
+        const btn = document.createElement("button");
+        btn.className = "btn";
+        btn.textContent = ORBITAL_LABEL[n];
+        btn.addEventListener("click", (ev) => { ev.stopPropagation(); startPractice(n); });
+        list.appendChild(btn);
+      }
+    }
+    showScreen("practice");
+  }
+
+  function startPractice(n) {
+    practice = true;
+    devMode = false;
+    reset(ORBITALS[n - 1].dim);
+    score = orbitalThreshold(n);            // start with that orbital's progress
+    scoreEl.textContent = score;
+    resume();
+    enterOrbital(n);
+  }
 
   // Leaderboard button on the game-over / pause overlay
   const lbOver = document.getElementById("lb-over");

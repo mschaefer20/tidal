@@ -425,7 +425,7 @@
       if (cx * cx + cy * cy < (ORB_R + 9) * (ORB_R + 9)) {
         o.taken = true;
         addScore(5);
-        sfx("coin"); buzz("light"); if (window.TidalStore) TidalStore.addCoins(1);
+        sfx("coin"); buzz("light"); if (window.TidalStore) TidalStore.addCoins(TidalStore.coinMultiplier());
       }
     }
   }
@@ -520,7 +520,7 @@
       if (dx * dx + dyo * dyo < (ORB_R + 9) * (ORB_R + 9)) {
         o.taken = true;
         addScore(5);
-        sfx("coin"); buzz("light"); if (window.TidalStore) TidalStore.addCoins(1);
+        sfx("coin"); buzz("light"); if (window.TidalStore) TidalStore.addCoins(TidalStore.coinMultiplier());
       }
     }
   }
@@ -713,7 +713,7 @@
       if (o.d <= 0.5 && o.d > -0.5 && Math.abs(o.x - orb.x) < ORB_R + 12) {
         o.taken = true;
         addScore(5);
-        sfx("coin"); buzz("light"); if (window.TidalStore) TidalStore.addCoins(1);
+        sfx("coin"); buzz("light"); if (window.TidalStore) TidalStore.addCoins(TidalStore.coinMultiplier());
       }
     }
 
@@ -1191,8 +1191,6 @@
     if (coinsBtn) { coinsBtn.textContent = cost + " Coins"; coinsBtn.disabled = coinsNow() < cost; }
     const adBtn = document.getElementById("cont-ad");
     if (adBtn) adBtn.hidden = adUsed;          // ad continue is once per run
-    const unlimBtn = document.getElementById("cont-unlim");
-    if (unlimBtn) unlimBtn.hidden = !(window.TidalStore && TidalStore.hasUnlimited());
     setText("coin-balance", coinsNow() + " coins");
   }
 
@@ -1219,10 +1217,10 @@
 
   function refreshShop() {
     setText("shop-balance", coinsNow() + " coins");
-    const u = document.getElementById("shop-unlim");
+    const u = document.getElementById("shop-premium");
     if (u) {
-      const owned = window.TidalStore && TidalStore.hasUnlimited();
-      u.textContent = owned ? "Unlimited Continues — Owned ✓" : "Unlimited Continues — $19.99";
+      const owned = window.TidalStore && TidalStore.hasPremium();
+      u.textContent = owned ? "Tidal Premium — Owned ✓" : "Tidal Premium — 2× Coins — $3.99";
       u.disabled = !!owned;
     }
   }
@@ -1312,7 +1310,6 @@
       e.stopPropagation();
       const a = b.dataset.cont;
       if (a === "giveup") { gameOver(); return; }
-      if (a === "unlimited") { continues++; doContinue(); return; }
       if (a === "coins") {
         if (window.TidalStore && TidalStore.spendCoins(continueCost())) { continues++; doContinue(); }
         else refreshContinue();
@@ -1335,7 +1332,7 @@
       e.stopPropagation();
       if (!window.TidalStore) return;
       const a = b.dataset.shop;
-      if (a === "unlimited") TidalStore.buyUnlimited().then(refreshShop);
+      if (a === "premium") TidalStore.buyPremium().then(refreshShop);
       else if (a === "coins500") TidalStore.buyCoins(500).then(refreshShop);
       else if (a === "coins1500") TidalStore.buyCoins(1500).then(refreshShop);
       else if (a === "restore") TidalStore.restore().then(refreshShop);

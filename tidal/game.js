@@ -69,7 +69,7 @@
   const ARENA = { x: W / 2, y: H * 0.46, rEvent: 30, rArena: 196 };
   const ARENA_G = 1100;              // radial accel (a tap flips inward <-> outward)
   const ARENA_MAXVR = 300;           // radial speed cap
-  const ARENA_OMEGA = 0.9;           // steady angular sweep around the hole (rad/s)
+  const ARENA_OMEGA = 1.25;          // steady angular sweep around the hole (rad/s)
   const DEBRIS_FIRST = 1.8;          // delay before the first debris (arena starts empty)
   const DEBRIS_SPEED0 = 50;          // initial inward speed of falling debris
   const DEBRIS_GRAV = 85;            // inward acceleration (pulled toward the hole)
@@ -87,7 +87,7 @@
   const GRAVITY3 = 1650;             // directional accel toward the active planet
   const MAXV3 = 520;                 // 2D speed cap
   const Y_WALL = ORB_R + 8;          // deadly top/bottom margin
-  const G3_AMP = 185;                // planet vertical sway amplitude (equal both sides)
+  const G3_AMP = 148;                // planet vertical sway amplitude (80% of prior 185)
   // Three incommensurate frequencies → wandering, non-repeating oscillation.
   const G3_FREQ = 1.2;
   const G3_FREQ2 = 0.73;
@@ -522,12 +522,16 @@
 
   // ---- Orbital 5 "Event Horizon": survival arena ---------------------------
   function spawnDebris() {
+    // generally AHEAD of the orb in its sweep direction (so it must dodge),
+    // with spread; telegraphed by a warn phase at the rim before it drops.
+    const ang = orb.theta - 0.5 + (Math.random() - 0.5) * 0.9;
     debris.push({
-      ang: Math.random() * TAU,
-      r: ARENA.rArena - 4,                 // spawns at the rim
-      vr: -DEBRIS_SPEED0,                  // falling inward
-      vAng: -(0.05 + Math.random() * 0.4), // counter-clockwise drift
+      ang,
+      r: ARENA.rArena - 4,                 // appears at the rim
+      vr: 0,                               // stationary while warning
+      vAng: -(0.05 + Math.random() * 0.3), // counter-clockwise drift once falling
       size: 9 + Math.random() * 7,
+      warn: 0.7,                           // telegraph time before it drops
     });
   }
   function spawnCoin(c) {
@@ -622,6 +626,8 @@
     }
     for (let i = debris.length - 1; i >= 0; i--) {
       const d = debris[i];
+      if (d.warn > 0) { d.warn -= dt; continue; }   // telegraphing at the rim (no fall/collision)
+      if (d.vr === 0) d.vr = -DEBRIS_SPEED0;          // release into the fall
       d.vr -= DEBRIS_GRAV * gMult * dt;     // accelerates toward the hole (harder mid-surge)
       d.r += d.vr * dt;
       d.ang += d.vAng * dt;
@@ -895,11 +901,18 @@
     ctx.fillStyle = "#000";
     ctx.beginPath(); ctx.arc(cx, cy, ARENA.rEvent, 0, TAU); ctx.fill();
 
-    // debris
-    ctx.fillStyle = "#8a8398";
+    // debris — warning pulse at the rim, then the falling rock
     for (const d of debris) {
       const ex = cx + Math.cos(d.ang) * d.r, ey = cy + Math.sin(d.ang) * d.r;
-      ctx.beginPath(); ctx.arc(ex, ey, d.size, 0, TAU); ctx.fill();
+      if (d.warn > 0) {
+        const p = 0.5 + 0.5 * Math.sin(d.warn * 22);
+        ctx.strokeStyle = `rgba(255,90,60,${0.4 + p * 0.5})`;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(ex, ey, d.size + 5 + p * 5, 0, TAU); ctx.stroke();
+      } else {
+        ctx.fillStyle = "#8a8398";
+        ctx.beginPath(); ctx.arc(ex, ey, d.size, 0, TAU); ctx.fill();
+      }
     }
 
     // coins

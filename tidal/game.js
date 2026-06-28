@@ -44,6 +44,15 @@
   // Score to reach orbital n. Dev mode spaces them 7 apart (7/14/21/28);
   // regular mode 100 apart (100/200/300/400).
   function orbitalThreshold(n) { return n <= 1 ? 0 : (devMode ? 7 : 100) * (n - 1); }
+
+  // Speed ramps with score from 0 up to DIFF_MAX_SCORE, then holds steady.
+  const DIFF_MAX_SCORE = 50;
+  function difficulty() { return Math.min(1, score / DIFF_MAX_SCORE); }
+  function scrollSpeed() { return SCROLL_START + (SCROLL_MAX - SCROLL_START) * difficulty(); }
+  function depthSpeedNow() {
+    const base = DEPTH_SPEED_START + (DEPTH_SPEED_MAX - DEPTH_SPEED_START) * difficulty();
+    return base * (orbital >= 4 ? O4_SPEED_MULT : 1);
+  }
   const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V"];
 
   // Global pace. NORMAL is the shipped play speed (75% of the old baseline).
@@ -110,7 +119,7 @@
     settings: document.getElementById("screen-settings"),
     continue: document.getElementById("screen-continue"),
     shop: document.getElementById("screen-shop"),
-    practice: document.getElementById("screen-practice"),
+    startfrom: document.getElementById("screen-startfrom"),
   };
 
   // ---- Settings (persisted) ------------------------------------------------
@@ -173,9 +182,7 @@
   // Dev mode = compressed thresholds (10 per orbital). Toggled by the Dev Play
   // button, the dev shortcuts, or ?dev / ?orbital / ?3d in the URL.
   let devMode = params.has("dev") || DEV_START_3D || DEV_START_ORBITAL > 0;
-  // Practice = replaying an unlocked orbital; such runs aren't ranked.
-  let practice = false;
-  // Highest orbital the player has legitimately reached (persisted).
+  // Highest orbital the player has reached — unlocks "Start From" (persisted).
   const UNLOCK_KEY = "tidal-unlocked";
   let unlocked = Math.max(1, Math.min(5, Number(localStorage.getItem(UNLOCK_KEY) || 1)));
   function setUnlocked(n) {
@@ -372,7 +379,7 @@
   // ---- Orbital 3 "Binary": 2D gravity toward the active planet -------------
   function updateBinary(dt) {
     const fromOrbital = orbital;
-    scroll = Math.min(SCROLL_MAX, scroll + SCROLL_ACCEL * dt);
+    scroll = scrollSpeed();
 
     // oscillate both planets over the same vertical range, but with a layered,
     // non-repeating wander (and different phase per side, so they're independent)
@@ -492,8 +499,7 @@
 
   function update2D(dt) {
     const fromOrbital = orbital;
-    // ramp difficulty
-    scroll = Math.min(SCROLL_MAX, scroll + SCROLL_ACCEL * dt);
+    scroll = scrollSpeed();   // score-based, capped at DIFF_MAX_SCORE
 
     if (!stepOrb(dt)) return die();
 
@@ -537,9 +543,9 @@
 
   // ---- Orbital 5 "Event Horizon": survival arena ---------------------------
   function spawnDebris() {
-    // generally AHEAD of the orb in its sweep direction (so it must dodge),
-    // with spread; telegraphed by a warn phase at the rim before it drops.
-    const ang = orb.theta - 0.5 + (Math.random() - 0.5) * 0.9;
+    // Spawn far enough ahead (in the sweep direction) that — after the warn +
+    // fall time — it lands where the orb will be, so you actually have to dodge.
+    const ang = orb.theta - ARENA_OMEGA * 1.6 + (Math.random() - 0.5) * 0.7;
     debris.push({
       ang,
       r: ARENA.rArena - 4,                 // appears at the rim
@@ -682,8 +688,7 @@
   // ---- 3D simulation -------------------------------------------------------
   function update3D(dt) {
     const fromOrbital = orbital;
-    const speedCap = DEPTH_SPEED_MAX * (orbital >= 4 ? O4_SPEED_MULT : 1);
-    depthSpeed = Math.min(speedCap, depthSpeed + DEPTH_ACCEL * dt);
+    depthSpeed = depthSpeedNow();   // score-based, capped at DIFF_MAX_SCORE
 
     // Hold the orb dead-center for the first ~2.4s of the 3D intro, then release
     // it to gravity — a clear beat to see it before it starts drifting.
@@ -1213,18 +1218,16 @@
 
   function gameOver() {
     screens.continue.classList.add("hidden");
-    // Practice and dev runs don't count toward best / leaderboard.
-    const ranked = !practice && !devMode;
+    // Dev runs don't count toward best / leaderboard.
+    const ranked = !devMode;
     if (ranked && score > best) {
       best = score;
       localStorage.setItem(BEST_KEY, String(best));
       bestEl.textContent = best;
     }
     if (ranked && window.TidalGC) TidalGC.submit(score);
-    overlayTitle.textContent = ranked ? "Game Over" : "Practice Over";
-    overlayText.textContent = ranked
-      ? `Score ${score}${score >= best && score > 0 ? " — new best!" : ""}`
-      : `Score ${score}`;
+    overlayTitle.textContent = "Game Over";
+    overlayText.textContent = `Score ${score}${ranked && score >= best && score > 0 ? " — new best!" : ""}`;
     startBtn.textContent = "Play again";
     overlay.classList.remove("hidden");
   }
@@ -1301,7 +1304,7 @@
   canvas.addEventListener("pointerdown", onPress);
   startBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    if (!paused) { practice = false; devMode = false; }   // "Play again" = fresh ranked run
+    if (!paused) { devMode = false; }   // "Play again" = fresh ranked run
     primaryAction();
   });
   menuBtn.addEventListener("click", (e) => { e.stopPropagation(); goMenu(); });
@@ -1312,9 +1315,9 @@
     b.addEventListener("click", (e) => {
       e.stopPropagation();
       const a = b.dataset.action;
-      if (a === "play") { practice = false; devMode = false; start(); }
-      else if (a === "devplay") { practice = false; devMode = true; start(); }
-      else if (a === "practice") showPractice();
+      if (a === "play") { devMode = false; start(); }
+      else if (a === "devplay") { devMode = true; start(); }
+      else if (a === "startfrom") showStartFrom();
       else if (a === "howto") showScreen("howto");
       else if (a === "settings") { refreshToggles(); showScreen("settings"); }
       else if (a === "shop") { refreshShop(); showScreen("shop"); }
@@ -1358,29 +1361,32 @@
     });
   });
 
-  function refreshCoinsUI() { setText("title-coins", coinsNow() + " coins"); }
+  function refreshCoinsUI() {
+    setText("title-coins", coinsNow() + " coins");
+    const sf = document.getElementById("btn-startfrom");
+    if (sf) sf.hidden = unlocked < 2;        // unlocks after you first reach orbital 2 (score 100)
+  }
 
-  // ---- Practice: replay any unlocked orbital (not ranked) ------------------
-  function showPractice() {
-    const list = document.getElementById("practice-list");
+  // ---- Start From: begin your run at any orbital you've reached ------------
+  function showStartFrom() {
+    const list = document.getElementById("startfrom-list");
     if (list) {
       list.innerHTML = "";
       for (let n = 1; n <= unlocked; n++) {
         const btn = document.createElement("button");
         btn.className = "btn";
         btn.textContent = ORBITAL_LABEL[n];
-        btn.addEventListener("click", (ev) => { ev.stopPropagation(); startPractice(n); });
+        btn.addEventListener("click", (ev) => { ev.stopPropagation(); startFrom(n); });
         list.appendChild(btn);
       }
     }
-    showScreen("practice");
+    showScreen("startfrom");
   }
 
-  function startPractice(n) {
-    practice = true;
+  function startFrom(n) {
     devMode = false;
     reset(ORBITALS[n - 1].dim);
-    score = orbitalThreshold(n);            // start with that orbital's progress
+    score = orbitalThreshold(n);            // your journey resumes at this orbital's score
     scoreEl.textContent = score;
     resume();
     enterOrbital(n);

@@ -42,7 +42,7 @@
         <h2 class="logo" id="title-logo">TIDAL</h2>
         <p class="tagline">One button. Two gravities.</p>
         <button class="btn" data-action="play">Play</button>
-        <button class="btn ghost" data-action="practice">Practice</button>
+        <button class="btn ghost" id="btn-startfrom" data-action="startfrom" hidden>Start From</button>
         <button class="btn ghost" data-action="devplay">Dev Play</button>
         <button class="btn ghost" data-action="shop">Shop</button>
         <button class="btn ghost" data-action="leaderboard" id="lb-title" hidden>Leaderboard</button>
@@ -86,11 +86,11 @@
         <p class="hint" id="coin-balance"></p>
       </section>
 
-      <!-- Practice: replay any unlocked orbital -->
-      <section id="screen-practice" class="screen hidden">
-        <h2>Practice</h2>
-        <p class="tagline">Replay any orbital you've reached (not ranked)</p>
-        <div id="practice-list" class="settings"></div>
+      <!-- Start From: begin at any orbital you've reached -->
+      <section id="screen-startfrom" class="screen hidden">
+        <h2>Start From</h2>
+        <p class="tagline">Resume your journey from any orbital you've reached</p>
+        <div id="startfrom-list" class="settings"></div>
         <button class="btn ghost" data-action="back">Back</button>
       </section>
 

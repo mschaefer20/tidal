@@ -119,7 +119,6 @@
     howto: document.getElementById("screen-howto"),
     settings: document.getElementById("screen-settings"),
     continue: document.getElementById("screen-continue"),
-    shop: document.getElementById("screen-shop"),
     startfrom: document.getElementById("screen-startfrom"),
   };
 
@@ -180,8 +179,8 @@
   const DEV_START_3D = params.has("3d") || params.get("mode") === "3d";
   // Dev shortcut: ?orbital=N (1-5) boots every run straight into that Orbital.
   const DEV_START_ORBITAL = Math.max(0, Math.min(5, Number(params.get("orbital")) || 0));
-  // Dev mode = compressed thresholds (10 per orbital). Toggled by the Dev Play
-  // button, the dev shortcuts, or ?dev / ?orbital / ?3d in the URL.
+  // Dev mode = compressed thresholds + excluded from ranking. Only reachable
+  // via URL params (?dev / ?orbital / ?3d) for testing — not in the shipped UI.
   let devMode = params.has("dev") || DEV_START_3D || DEV_START_ORBITAL > 0;
   // Highest orbital the player has reached — unlocks "Start From" (persisted).
   const UNLOCK_KEY = "tidal-unlocked";
@@ -1207,8 +1206,6 @@
     const cost = continueCost();
     const coinsBtn = document.getElementById("cont-coins");
     if (coinsBtn) { coinsBtn.textContent = cost + " Coins"; coinsBtn.disabled = coinsNow() < cost; }
-    const adBtn = document.getElementById("cont-ad");
-    if (adBtn) adBtn.hidden = adUsed;          // ad continue is once per run
     setText("coin-balance", coinsNow() + " coins");
   }
 
@@ -1233,16 +1230,6 @@
     overlayText.textContent = `Score ${score}${ranked && score >= best && score > 0 ? " — new best!" : ""}`;
     startBtn.textContent = "Play again";
     overlay.classList.remove("hidden");
-  }
-
-  function refreshShop() {
-    setText("shop-balance", coinsNow() + " coins");
-    const u = document.getElementById("shop-premium");
-    if (u) {
-      const owned = window.TidalStore && TidalStore.hasPremium();
-      u.textContent = owned ? "Tidal Premium — Owned ✓" : "Tidal Premium — 2× Coins — $3.99";
-      u.disabled = !!owned;
-    }
   }
 
   // ---- Menu / screen management -------------------------------------------
@@ -1319,11 +1306,9 @@
       e.stopPropagation();
       const a = b.dataset.action;
       if (a === "play") { devMode = false; start(); }
-      else if (a === "devplay") { devMode = true; start(); }
       else if (a === "startfrom") showStartFrom();
       else if (a === "howto") showScreen("howto");
       else if (a === "settings") { refreshToggles(); showScreen("settings"); }
-      else if (a === "shop") { refreshShop(); showScreen("shop"); }
       else if (a === "back") { showScreen("title"); refreshCoinsUI(); }
       else if (a === "leaderboard") { if (window.TidalGC) TidalGC.show(); }
     });
@@ -1338,29 +1323,7 @@
       if (a === "coins") {
         if (window.TidalStore && TidalStore.spendCoins(continueCost())) { continues++; doContinue(); }
         else refreshContinue();
-        return;
       }
-      if (a === "ad") {
-        if (!window.TidalStore || adUsed) return;
-        b.disabled = true; b.textContent = "Loading ad…";
-        TidalStore.watchAd().then((ok) => {
-          b.disabled = false; b.innerHTML = "&#9654; Watch Ad";
-          if (ok) { adUsed = true; continues++; doContinue(); }
-        });
-      }
-    });
-  });
-
-  // Shop buttons
-  document.querySelectorAll("[data-shop]").forEach((b) => {
-    b.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (!window.TidalStore) return;
-      const a = b.dataset.shop;
-      if (a === "premium") TidalStore.buyPremium().then(refreshShop);
-      else if (a === "coins500") TidalStore.buyCoins(500).then(refreshShop);
-      else if (a === "coins1500") TidalStore.buyCoins(1500).then(refreshShop);
-      else if (a === "restore") TidalStore.restore().then(refreshShop);
     });
   });
 
@@ -1406,18 +1369,6 @@
     if (lbOver) lbOver.hidden = false;
   }
 
-  // Hidden dev shortcut: tap the title logo 5× quickly to jump straight to 3D.
-  (() => {
-    const logo = document.getElementById("title-logo");
-    if (!logo) return;
-    let taps = 0, last = 0;
-    logo.addEventListener("click", () => {
-      const now = performance.now();
-      taps = now - last < 800 ? taps + 1 : 1;
-      last = now;
-      if (taps >= 5) { taps = 0; devMode = true; reset("3d"); resume(); enterOrbital(2); }
-    });
-  })();
 
   // Settings toggles
   document.querySelectorAll(".toggle").forEach((t) => {
@@ -1438,18 +1389,6 @@
       else if (!overlay.classList.contains("hidden")) primaryAction(); // resume / restart
     }
     if ((e.key === "Escape" || e.key === "p" || e.key === "P") && running) pauseGame();
-    // Dev: press 1–5 to jump straight to that Orbital.
-    if (e.key >= "1" && e.key <= "5") {
-      devMode = true;
-      const n = Number(e.key);
-      if (!running) { reset(ORBITALS[n - 1].dim); resume(); enterOrbital(n); }
-      else enterOrbital(n);
-    }
-    // Dev: press "0" to toggle slow-motion (20% speed).
-    if (e.key === "0") {
-      timeScale = timeScale === SPEED_DEV ? SPEED_NORMAL : SPEED_DEV;
-      if (!running) draw();
-    }
   });
 
   // pause (don't kill) if the app is backgrounded

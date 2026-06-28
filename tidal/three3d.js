@@ -194,7 +194,9 @@ function buildGrid(color, y) {
 function makeBlock() {
   const geo = new THREE.BoxGeometry(1, 1, 0.7);
   const mesh = new THREE.Mesh(geo, toonMat(0x3c4a72, 0x222b45, 0.12));
-  mesh.add(inkEdges(geo));     // clean ink outline
+  mesh.material.transparent = true;
+  mesh.material.depthWrite = false;   // so a faded near wall doesn't hide the next one
+  mesh.add(inkEdges(geo));     // clean ink outline (stays visible to show the gap)
   mesh.visible = false;
   scene.add(mesh);
   return mesh;
@@ -374,8 +376,9 @@ const api = {
       const b = barPool[i], data = s.bars[i];
       if (!data) { b.left.visible = false; b.right.visible = false; continue; }
       const z = -data.d * DZ;
-      placeBlock(b.left, -HALFW, (data.cx - data.half) * HALFW, z);
-      placeBlock(b.right, (data.cx + data.half) * HALFW, HALFW, z);
+      const op = Math.max(0.12, Math.min(1, data.d / 2.2));   // fade as it nears the camera
+      placeBlock(b.left, -HALFW, (data.cx - data.half) * HALFW, z, op);
+      placeBlock(b.right, (data.cx + data.half) * HALFW, HALFW, z, op);
     }
 
     for (let i = 0; i < bonusPool.length; i++) {
@@ -390,12 +393,13 @@ const api = {
   },
 };
 
-function placeBlock(block, x0, x1, z) {
+function placeBlock(block, x0, x1, z, op) {
   const w = x1 - x0;
   if (w <= 0.06) { block.visible = false; return; }
   block.visible = true;
   block.position.set((x0 + x1) / 2, 0, z);
   block.scale.set(w, FY * 2, 0.7);
+  block.material.opacity = op;
 }
 
 window.Tidal3D = api;

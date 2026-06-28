@@ -1,5 +1,5 @@
 /* Minimal offline cache so Tidal is installable and works without a network. */
-const CACHE = "tidal-v36";
+const CACHE = "tidal-v37";
 const ASSETS = [
   "./",
   "./index.html",

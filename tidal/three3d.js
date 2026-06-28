@@ -60,7 +60,7 @@ function addOutline(mesh, scale) {
 }
 
 function inkEdges(geo) {
-  return new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: INK }));
+  return new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: INK, transparent: true }));
 }
 
 // Painted deep-space backdrop: high-res starfield, layered wispy nebula,
@@ -376,7 +376,9 @@ const api = {
       const b = barPool[i], data = s.bars[i];
       if (!data) { b.left.visible = false; b.right.visible = false; continue; }
       const z = -data.d * DZ;
-      const op = Math.max(0.12, Math.min(1, data.d / 2.2));   // fade as it nears the camera
+      // Fade walls out as they near the camera so they don't hide the next one:
+      // solid when far (d >= 5), fully gone by the time they reach you (d <= 0.5).
+      const op = Math.max(0, Math.min(1, (data.d - 0.5) / 4.5));
       placeBlock(b.left, -HALFW, (data.cx - data.half) * HALFW, z, op);
       placeBlock(b.right, (data.cx + data.half) * HALFW, HALFW, z, op);
     }
@@ -395,11 +397,12 @@ const api = {
 
 function placeBlock(block, x0, x1, z, op) {
   const w = x1 - x0;
-  if (w <= 0.06) { block.visible = false; return; }
+  if (w <= 0.06 || op <= 0.01) { block.visible = false; return; }   // hide once fully faded
   block.visible = true;
   block.position.set((x0 + x1) / 2, 0, z);
   block.scale.set(w, FY * 2, 0.7);
   block.material.opacity = op;
+  if (block.children[0]) block.children[0].material.opacity = op;   // fade the edge frame too
 }
 
 window.Tidal3D = api;

@@ -179,6 +179,16 @@
   const DEV_START_3D = params.has("3d") || params.get("mode") === "3d";
   // Dev shortcut: ?orbital=N (1-5) boots every run straight into that Orbital.
   const DEV_START_ORBITAL = Math.max(0, Math.min(5, Number(params.get("orbital")) || 0));
+  // Screenshot helper: ?shot=N drops into a posed scene (score/best/orbital, no death).
+  const SHOT = Math.max(0, Math.min(5, Number(params.get("shot")) || 0));
+  const SHOTS = {
+    1: { orbital: 1, score: 13, best: 44 },
+    2: { orbital: 2, score: 122, best: 149 },
+    3: { orbital: 3, score: 254, best: 277 },
+    4: { orbital: 4, score: 302, best: 344 },
+    5: { orbital: 5, score: 409, best: 422 },
+  };
+  let shotMode = false;
   // Dev mode = compressed thresholds + excluded from ranking. Only reachable
   // via URL params (?dev / ?orbital / ?3d) for testing — not in the shipped UI.
   let devMode = params.has("dev") || DEV_START_3D || DEV_START_ORBITAL > 0;
@@ -209,6 +219,7 @@
     depthSpeed = DEPTH_SPEED_START;
     countdown = 0;
     invuln = 0;
+    shotMode = false;
     orbitalStartScore = 0;
     continues = 0;
     adUsed = false;
@@ -488,6 +499,7 @@
   }
 
   function addScore(n) {
+    if (shotMode) return;            // posed screenshot: keep the score fixed
     score += n;
     scoreEl.textContent = score;
     // advance to the next Orbital once its score threshold is reached
@@ -1358,6 +1370,21 @@
     enterOrbital(n);
   }
 
+  // Pose a scene for App Store screenshots (?shot=N): set score/best/orbital,
+  // skip the countdown, and disable death so you can frame the shot.
+  function setupShot(s) {
+    devMode = true;
+    reset(ORBITALS[s.orbital - 1].dim);
+    shotMode = true;
+    best = s.best; bestEl.textContent = best;
+    score = s.score; scoreEl.textContent = score;
+    resume();
+    enterOrbital(s.orbital);
+    countdown = 0;                          // no 3-2-1
+    invuln = 1e9;                           // never die
+    score = s.score; scoreEl.textContent = score;
+  }
+
   // Leaderboard button on the game-over / pause overlay
   const lbOver = document.getElementById("lb-over");
   if (lbOver) lbOver.addEventListener("click", (e) => { e.stopPropagation(); if (window.TidalGC) TidalGC.show(); });
@@ -1403,6 +1430,7 @@
   draw();
   showScreen("title");
   refreshCoinsUI();
+  if (SHOT && SHOTS[SHOT]) setupShot(SHOTS[SHOT]);   // ?shot=N → posed screenshot scene
 
   // ---- PWA registration ----------------------------------------------------
   if ("serviceWorker" in navigator) {

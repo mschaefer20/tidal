@@ -60,7 +60,7 @@ function addOutline(mesh, scale) {
 }
 
 function inkEdges(geo) {
-  return new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: INK, transparent: true }));
+  return new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0x9fb4ff, transparent: true }));
 }
 
 // Painted deep-space backdrop: high-res starfield, layered wispy nebula,
@@ -401,8 +401,8 @@ function placeBlock(block, x0, x1, z, op) {
   block.visible = true;
   block.position.set((x0 + x1) / 2, 0, z);
   block.scale.set(w, FY * 2, 0.7);
-  block.material.opacity = op;
-  if (block.children[0]) block.children[0].material.opacity = op;   // fade the edge frame too
+  block.material.opacity = op * 0.85;                               // panel fades faster (see-through)
+  if (block.children[0]) block.children[0].material.opacity = Math.min(1, op + 0.7);  // edge frame stays crisp
 }
 
 window.Tidal3D = api;

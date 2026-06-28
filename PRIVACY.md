@@ -29,4 +29,4 @@ If this policy changes, the updated version will be posted at this URL with a ne
 "Last updated" date.
 
 ## Contact
-Questions? Contact: **marcus.schaefer@sulzer.com**
+Questions? Contact: **maschaef20@gmail.com**

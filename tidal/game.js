@@ -45,9 +45,10 @@
   // regular mode 100 apart (100/200/300/400).
   function orbitalThreshold(n) { return n <= 1 ? 0 : (devMode ? 7 : 100) * (n - 1); }
 
-  // Speed ramps with score from 0 up to DIFF_MAX_SCORE, then holds steady.
-  const DIFF_MAX_SCORE = 50;
-  function difficulty() { return Math.min(1, score / DIFF_MAX_SCORE); }
+  // Speed ramps over the FIRST DIFF_RAMP points of each orbital, then holds —
+  // so it resets to slow at the start of every orbital.
+  const DIFF_RAMP = 50;
+  function difficulty() { return Math.min(1, (score - orbitalStartScore) / DIFF_RAMP); }
   function scrollSpeed() { return SCROLL_START + (SCROLL_MAX - SCROLL_START) * difficulty(); }
   function depthSpeedNow() {
     const base = DEPTH_SPEED_START + (DEPTH_SPEED_MAX - DEPTH_SPEED_START) * difficulty();
@@ -159,7 +160,7 @@
 
   // ---- State ---------------------------------------------------------------
   let orb, gravSide, bars, bonuses, scroll, score, running, lastT, rafId, shake, paused;
-  let mode, depthSpeed, flash, intro, travel, orbital, countdown, invuln;
+  let mode, depthSpeed, flash, intro, travel, orbital, countdown, invuln, orbitalStartScore;
   let continues, adUsed;        // continue ladder: count this run + whether the ad was used
   const COUNTDOWN_TIME = 3.0;   // wait + 3-2-1 before each new orbital (2-5)
   const CONTINUE_COST = 100;    // base coins per continue
@@ -209,6 +210,7 @@
     depthSpeed = DEPTH_SPEED_START;
     countdown = 0;
     invuln = 0;
+    orbitalStartScore = 0;
     continues = 0;
     adUsed = false;
     g3Time = 0;
@@ -239,6 +241,7 @@
   // transition. Works for any 2D⇄3D combination.
   function enterOrbital(n) {
     orbital = n;
+    orbitalStartScore = score;   // speed ramp resets at the start of each orbital
     setUnlocked(n);
     mode = ORBITALS[n - 1].dim;
     flash = settings.reduceMotion ? 0.25 : 1;

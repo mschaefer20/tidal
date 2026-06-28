@@ -1435,7 +1435,9 @@
   draw();
   showScreen("title");
   refreshCoinsUI();
-  if (SHOT && SHOTS[SHOT]) setupShot(SHOTS[SHOT]);   // ?shot=N → posed screenshot scene
+  // ?shot=N → posed screenshot scene. Wait for `load` so the WebGL engine
+  // module (deferred) is ready, otherwise 3D orbitals fall back to canvas.
+  if (SHOT && SHOTS[SHOT]) window.addEventListener("load", () => setupShot(SHOTS[SHOT]));
 
   // ---- PWA registration ----------------------------------------------------
   if ("serviceWorker" in navigator) {

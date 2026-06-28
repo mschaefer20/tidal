@@ -161,6 +161,7 @@
   let orb, gravSide, bars, bonuses, scroll, score, running, lastT, rafId, shake, paused;
   let mode, depthSpeed, flash, intro, travel, orbital, countdown, invuln, orbitalStartScore;
   let continues, adUsed;        // continue ladder: count this run + whether the ad was used
+  let frozen = false;           // shot mode: freeze the scene to capture a screenshot
   const COUNTDOWN_TIME = 3.0;   // wait + 3-2-1 before each new orbital (2-5)
   const CONTINUE_COST = 100;    // base coins per continue
   // First continue is free via ad (once per run); coin cost doubles each time.
@@ -220,6 +221,7 @@
     countdown = 0;
     invuln = 0;
     shotMode = false;
+    frozen = false;
     orbitalStartScore = 0;
     continues = 0;
     adUsed = false;
@@ -1135,6 +1137,8 @@
     }
     updateCountdownUI();
 
+    if (frozen) { draw(); rafId = requestAnimationFrame(loop); return; }   // shot-mode freeze
+
     update(dt * timeScale);       // global pace multiplier
     if (running) draw();
     rafId = requestAnimationFrame(loop);
@@ -1416,6 +1420,7 @@
       else if (!overlay.classList.contains("hidden")) primaryAction(); // resume / restart
     }
     if ((e.key === "Escape" || e.key === "p" || e.key === "P") && running) pauseGame();
+    if ((e.key === "f" || e.key === "F") && shotMode) frozen = !frozen;   // freeze/unfreeze for screenshots
   });
 
   // pause (don't kill) if the app is backgrounded

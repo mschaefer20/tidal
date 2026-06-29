@@ -36,6 +36,8 @@ workflows:
           if [ ! -d "ios" ]; then npx cap add ios; fi
       - name: Sync web assets + plugins into the native project
         script: npx cap sync ios
+      - name: Make the app iPhone-only (no iPad)
+        script: node ci/iphone-only.js
       - name: Configure Info.plist (compliance + portrait lock)
         script: |
           PLIST=ios/App/App/Info.plist

@@ -1214,15 +1214,33 @@
   function showContinue() {
     overlay.classList.add("hidden");
     hideScreens();
-    setText("continue-score", "Score " + score);
+    // Record best now (running max) so the death screen can show "New Best!".
+    const newBest = !devMode && score > best;
+    if (newBest) {
+      best = score;
+      localStorage.setItem(BEST_KEY, String(best));
+      bestEl.textContent = best;
+    }
+    setText("continue-score", newBest ? `Score ${score} — New Best!` : `Score ${score} · Best ${best}`);
+    showContinueConfirm(false);
     refreshContinue();
     screens.continue.classList.remove("hidden");
   }
   function refreshContinue() {
     const cost = continueCost();
     const coinsBtn = document.getElementById("cont-coins");
-    if (coinsBtn) { coinsBtn.textContent = cost + " Coins"; coinsBtn.disabled = coinsNow() < cost; }
+    if (coinsBtn) { coinsBtn.textContent = `Continue — ${cost} coins`; coinsBtn.disabled = coinsNow() < cost; }
     setText("coin-balance", coinsNow() + " coins");
+  }
+  // Toggle between the choice buttons and the "spend coins?" confirmation.
+  function showContinueConfirm(on) {
+    ["cont-coins", "cont-startover", "cont-menu"].forEach((id) => {
+      const el = document.getElementById(id); if (el) el.hidden = on;
+    });
+    ["cont-confirm-text", "cont-yes", "cont-no"].forEach((id) => {
+      const el = document.getElementById(id); if (el) el.hidden = !on;
+    });
+    if (on) setText("cont-confirm-text", `Spend ${continueCost()} coins to continue?`);
   }
 
   function doContinue() {
@@ -1232,20 +1250,9 @@
     resume();
   }
 
-  function gameOver() {
-    screens.continue.classList.add("hidden");
-    // Dev runs don't count toward best / leaderboard.
-    const ranked = !devMode;
-    if (ranked && score > best) {
-      best = score;
-      localStorage.setItem(BEST_KEY, String(best));
-      bestEl.textContent = best;
-    }
-    if (ranked && window.TidalGC) TidalGC.submit(score);
-    overlayTitle.textContent = "Game Over";
-    overlayText.textContent = `Score ${score}${ranked && score >= best && score > 0 ? " — new best!" : ""}`;
-    startBtn.textContent = "Play again";
-    overlay.classList.remove("hidden");
+  // The run has truly ended (submit to the leaderboard when it's live).
+  function finalizeRun() {
+    if (!devMode && window.TidalGC) TidalGC.submit(score);
   }
 
   // ---- Menu / screen management -------------------------------------------
@@ -1335,10 +1342,21 @@
     b.addEventListener("click", (e) => {
       e.stopPropagation();
       const a = b.dataset.cont;
-      if (a === "giveup") { gameOver(); return; }
       if (a === "coins") {
+        // First tap asks for confirmation (so coins aren't spent by accident).
+        if (coinsNow() >= continueCost()) showContinueConfirm(true);
+      } else if (a === "confirm-yes") {
         if (window.TidalStore && TidalStore.spendCoins(continueCost())) { continues++; doContinue(); }
-        else refreshContinue();
+        else showContinueConfirm(false);
+      } else if (a === "confirm-no") {
+        showContinueConfirm(false);
+      } else if (a === "startover") {
+        finalizeRun();
+        screens.continue.classList.add("hidden");
+        start();
+      } else if (a === "menu") {
+        finalizeRun();
+        goMenu();
       }
     });
   });

@@ -77,8 +77,12 @@
       <section id="screen-continue" class="screen hidden">
         <h2>Continue?</h2>
         <p id="continue-score" class="tagline"></p>
-        <button class="btn" id="cont-coins" data-cont="coins">100 Coins</button>
-        <button class="btn ghost" data-cont="giveup">Give Up</button>
+        <button class="btn" id="cont-coins" data-cont="coins">Continue — 100 coins</button>
+        <button class="btn ghost" id="cont-startover" data-cont="startover">Start Over</button>
+        <button class="btn ghost" id="cont-menu" data-cont="menu">Menu</button>
+        <p id="cont-confirm-text" class="tagline" hidden></p>
+        <button class="btn" id="cont-yes" data-cont="confirm-yes" hidden>Yes, spend coins</button>
+        <button class="btn ghost" id="cont-no" data-cont="confirm-no" hidden>Cancel</button>
         <p class="hint" id="coin-balance"></p>
       </section>
 

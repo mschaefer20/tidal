@@ -43,6 +43,7 @@
         <p class="tagline">One button. Two gravities.</p>
         <button class="btn" data-action="play">Play</button>
         <button class="btn ghost" id="btn-startfrom" data-action="startfrom" hidden>Start From</button>
+        <button class="btn ghost" data-action="shop">Shop</button>
         <button class="btn ghost" data-action="leaderboard" id="lb-title" hidden>Leaderboard</button>
         <button class="btn ghost" data-action="howto">How to Play</button>
         <button class="btn ghost" data-action="settings">Settings</button>
@@ -92,6 +93,17 @@
         <h2>Start From</h2>
         <p class="tagline">Resume your journey from any orbital you've reached</p>
         <div id="startfrom-list" class="settings"></div>
+        <button class="btn ghost" data-action="back">Back</button>
+      </section>
+
+      <!-- Shop -->
+      <section id="screen-shop" class="screen hidden">
+        <h2>Shop</h2>
+        <p class="hint" id="shop-balance"></p>
+        <button class="btn" id="shop-premium" data-shop="premium">Tidal Premium &mdash; 2&times; Coins</button>
+        <button class="btn ghost" data-shop="coins500">500 Coins</button>
+        <button class="btn ghost" data-shop="coins1500">1500 Coins</button>
+        <button class="btn ghost" data-shop="restore">Restore Purchases</button>
         <button class="btn ghost" data-action="back">Back</button>
       </section>
 

@@ -120,6 +120,7 @@
     settings: document.getElementById("screen-settings"),
     continue: document.getElementById("screen-continue"),
     startfrom: document.getElementById("screen-startfrom"),
+    shop: document.getElementById("screen-shop"),
   };
 
   // ---- Settings (persisted) ------------------------------------------------
@@ -1330,6 +1331,7 @@
       const a = b.dataset.action;
       if (a === "play") { devMode = false; start(); }
       else if (a === "startfrom") showStartFrom();
+      else if (a === "shop") { refreshShop(); showScreen("shop"); }
       else if (a === "howto") showScreen("howto");
       else if (a === "settings") { refreshToggles(); showScreen("settings"); }
       else if (a === "back") { showScreen("title"); refreshCoinsUI(); }
@@ -1368,6 +1370,31 @@
     const sf = document.getElementById("btn-startfrom");
     if (sf) sf.hidden = unlocked < 2;        // unlocks after you first reach orbital 2 (score 100)
   }
+
+  function refreshShop() {
+    setText("shop-balance", coinsNow() + " coins");
+    const u = document.getElementById("shop-premium");
+    if (u) {
+      const owned = window.TidalStore && TidalStore.hasPremium();
+      u.textContent = owned ? "Tidal Premium — Owned ✓" : "Tidal Premium — 2× Coins";
+      u.disabled = !!owned;
+    }
+  }
+
+  // Shop buttons (purchases are async via RevenueCat)
+  document.querySelectorAll("[data-shop]").forEach((b) => {
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (!window.TidalStore) return;
+      const a = b.dataset.shop;
+      b.disabled = true;
+      const done = () => { b.disabled = false; refreshShop(); refreshCoinsUI(); };
+      if (a === "premium") TidalStore.buyPremium().then(done);
+      else if (a === "coins500") TidalStore.buyCoins(500).then(done);
+      else if (a === "coins1500") TidalStore.buyCoins(1500).then(done);
+      else if (a === "restore") TidalStore.restore().then(done);
+    });
+  });
 
   // ---- Start From: begin your run at any orbital you've reached ------------
   function showStartFrom() {

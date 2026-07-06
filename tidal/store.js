@@ -1,7 +1,8 @@
-/* Tidal store — coin wallet + premium unlock + purchase/ad hooks.
-   Coins and the "Tidal Premium" (2x coins) unlock persist in localStorage.
-   buy/restore/ad are STUBBED for web so the whole flow is playable now; on
-   device they'll be backed by real StoreKit IAP + AdMob (same API). */
+/* Tidal store — coin wallet + RevenueCat in-app purchases.
+   Coins (consumables) are app-managed in localStorage; "Tidal Premium" (2x
+   coins) is a RevenueCat entitlement. On device this uses the real
+   @revenuecat/purchases-capacitor plugin; on the web it falls back to local
+   stubs so the flow stays playable/testable. Exposed as window.TidalStore. */
 
 (() => {
   "use strict";
@@ -9,12 +10,34 @@
   const COINS_KEY = "tidal-coins";
   const PREMIUM_KEY = "tidal-premium";
 
+  // ---- MUST MATCH App Store Connect + RevenueCat -------------------------
+  const RC_API_KEY = "appl_REPLACE_WITH_YOUR_REVENUECAT_IOS_KEY";
+  const P_PREMIUM = "tidal_premium";                 // non-consumable
+  const ENTITLEMENT = "premium";                     // RevenueCat entitlement id
+  const COIN_PACKS = { 500: "tidal_coins_500", 1500: "tidal_coins_1500" }; // consumables
+
   let coins = Math.max(0, Number(localStorage.getItem(COINS_KEY) || 0));
   let premium = localStorage.getItem(PREMIUM_KEY) === "1";
 
   function save() {
     localStorage.setItem(COINS_KEY, String(coins));
     localStorage.setItem(PREMIUM_KEY, premium ? "1" : "0");
+  }
+  function rc() {
+    return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Purchases;
+  }
+  function applyCustomerInfo(ci) {
+    if (ci && ci.entitlements && ci.entitlements.active) {
+      premium = !!ci.entitlements.active[ENTITLEMENT];
+      save();
+    }
+  }
+  async function purchaseId(id) {
+    const p = rc();
+    const prods = await p.getProducts({ productIdentifiers: [id] });
+    const product = prods && prods.products && prods.products[0];
+    if (!product) throw new Error("product not found: " + id);
+    return p.purchaseStoreProduct({ product });
   }
 
   window.TidalStore = {
@@ -24,20 +47,50 @@
     hasPremium() { return premium; },
     coinMultiplier() { return premium ? 2 : 1; },
 
-    // ---- purchases / ads (STUB — replace with native plugins on device) ----
-    buyPremium() {                         // non-consumable IAP (~$3.99): 2x coins
-      premium = true; save();
-      return Promise.resolve(true);
+    async buyPremium() {                 // non-consumable → RevenueCat entitlement
+      const p = rc();
+      if (!p) { premium = true; save(); return true; }        // web/dev fallback
+      try {
+        const res = await purchaseId(P_PREMIUM);
+        applyCustomerInfo(res && res.customerInfo);
+        return premium;
+      } catch (e) { return false; }       // includes user-cancelled
     },
-    buyCoins(amount) {                     // consumable IAP (coin pack)
-      coins += amount; save();
-      return Promise.resolve(true);
+
+    async buyCoins(amount) {             // consumable → grant coins locally on success
+      const p = rc();
+      if (!p) { coins += amount; save(); return true; }       // web/dev fallback
+      const id = COIN_PACKS[amount];
+      if (!id) return false;
+      try {
+        await purchaseId(id);
+        coins += amount; save();
+        return true;
+      } catch (e) { return false; }
     },
-    restore() {                            // restore non-consumables (App Store requirement)
-      return Promise.resolve(premium);
+
+    async restore() {                    // App Store requirement (non-consumables)
+      const p = rc();
+      if (!p) return premium;
+      try {
+        const res = await p.restorePurchases();
+        applyCustomerInfo(res && res.customerInfo);
+      } catch (e) { /* ignore */ }
+      return premium;
     },
-    watchAd() {                            // rewarded video (~30s) → resolves true if completed
-      return new Promise((res) => setTimeout(() => res(true), 500));
-    },
+
+    // Rewarded ad continue — still stubbed until the AdMob phase.
+    watchAd() { return new Promise((res) => setTimeout(() => res(true), 500)); },
   };
+
+  // Configure RevenueCat on device once the plugin is available.
+  document.addEventListener("DOMContentLoaded", async () => {
+    const p = rc();
+    if (!p) return;
+    try {
+      await p.configure({ apiKey: RC_API_KEY });
+      const res = await p.getCustomerInfo();
+      applyCustomerInfo(res && res.customerInfo);
+    } catch (e) { /* ignore — keep last known state */ }
+  });
 })();

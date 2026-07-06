@@ -15,7 +15,8 @@
     "@capacitor/haptics": "^6.0.2",
     "@capacitor/splash-screen": "^6.0.3",
     "@capacitor/status-bar": "^6.0.2",
-    "@openforge/capacitor-game-connect": "5.0.2"
+    "@openforge/capacitor-game-connect": "5.0.2",
+    "@revenuecat/purchases-capacitor": "^9.2.2"
   },
   "devDependencies": {
     "@capacitor/cli": "^6.1.2",

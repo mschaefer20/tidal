@@ -1357,6 +1357,8 @@
       } else if (a === "menu") {
         finalizeRun();
         goMenu();
+      } else if (a === "leaderboard") {
+        if (window.TidalGC) TidalGC.show();
       }
     });
   });
@@ -1413,9 +1415,9 @@
 
   // Reveal leaderboard buttons only where Game Center exists (the native app)
   if (window.TidalGC && TidalGC.available()) {
-    const lbTitle = document.getElementById("lb-title");
-    if (lbTitle) lbTitle.hidden = false;
-    if (lbOver) lbOver.hidden = false;
+    ["lb-title", "lb-over", "cont-lb"].forEach((id) => {
+      const el = document.getElementById(id); if (el) el.hidden = false;
+    });
   }
 
 

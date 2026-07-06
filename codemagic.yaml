@@ -38,6 +38,8 @@ workflows:
         script: npx cap sync ios
       - name: Make the app iPhone-only (no iPad)
         script: node ci/iphone-only.js
+      - name: Enable Game Center capability
+        script: node ci/enable-gamecenter.js
       - name: Configure Info.plist (compliance + portrait lock)
         script: |
           PLIST=ios/App/App/Info.plist

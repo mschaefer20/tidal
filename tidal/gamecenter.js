@@ -10,10 +10,9 @@
 
   const LEADERBOARD_ID = "tidal_high_scores";
 
-  // v1.0 ships WITHOUT Game Center (needs the entitlement + profile work).
-  // Flip to true for v1.1 once Game Center is enabled on the App ID and the
-  // provisioning profile is regenerated to include it.
-  const ENABLED = false;
+  // Enabled for v1.1. Requires: Game Center on the App ID, the game-center
+  // entitlement in the build (CI), and a leaderboard "tidal_high_scores" in ASC.
+  const ENABLED = true;
 
   let signedIn = false;
 

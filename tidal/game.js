@@ -346,6 +346,7 @@
         d: b.d,
         cx: nx(b.gapX + b.gapW / 2),
         half: (b.gapW / 2) / halfPlay,
+        taper: b.taper || 0,
       })),
       bonuses: bonuses.filter((o) => !o.taken && o.d > -1).map((o) => ({ nx: nx(o.x), d: o.d })),
     };
@@ -378,7 +379,10 @@
     // (worst case ~77px vs the 26px orb — tight but fair).
     if (orbital === 4) gap *= 0.8 + Math.random() * 0.4;
     const gapX = randomGapX(gap);
-    bars.push({ d, gapX, gapW: gap, passed: false });
+    // Orbital 4: gaps also taper — up to 20% wider/narrower at the top vs the
+    // bottom (±10% around the middle), so where you cross vertically matters.
+    const taper = orbital === 4 ? Math.random() * 0.2 - 0.1 : 0;
+    bars.push({ d, gapX, gapW: gap, taper, passed: false });
     if (Math.random() < 0.6) {
       const bx = gapX + Math.random() * gap;
       bonuses.push({ x: bx, d: d - DEPTH_SPACING / 2, taken: false });
@@ -514,7 +518,16 @@
   }
 
   function inGap(b) {
-    return orb.x > b.gapX + ORB_R * 0.5 && orb.x < b.gapX + b.gapW - ORB_R * 0.5;
+    let gx = b.gapX, gw = b.gapW;
+    if (b.taper) {
+      // Orbital 4 tapered gap: width varies linearly with the orb's height
+      // (same ny the renderer slants the walls by), centered on the midpoint.
+      const ny = (orb.y - H / 2) / (H / 2);
+      const eff = b.gapW * (1 + b.taper * ny);
+      gx += (b.gapW - eff) / 2;
+      gw = eff;
+    }
+    return orb.x > gx + ORB_R * 0.5 && orb.x < gx + gw - ORB_R * 0.5;
   }
 
   function update2D(dt) {

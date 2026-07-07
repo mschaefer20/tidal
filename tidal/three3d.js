@@ -197,6 +197,7 @@ function makeBlock() {
   mesh.material.transparent = true;
   mesh.material.depthWrite = false;   // so a faded near wall doesn't hide the next one
   mesh.add(inkEdges(geo));     // clean ink outline (stays visible to show the gap)
+  mesh.matrixAutoUpdate = false;      // placed via a manual matrix (shear for tapered gaps)
   mesh.visible = false;
   scene.add(mesh);
   return mesh;
@@ -379,8 +380,12 @@ const api = {
       // Fade walls out as they near the camera so they don't hide the next one:
       // solid when far (d >= 5), fully gone by the time they reach you (d <= 0.5).
       const op = Math.max(0, Math.min(1, (data.d - 0.5) / 4.5));
-      placeBlock(b.left, -HALFW, (data.cx - data.half) * HALFW, z, op);
-      placeBlock(b.right, (data.cx + data.half) * HALFW, HALFW, z, op);
+      // Tapered gap (Orbital 4): the inner edges slant so the gap is wider at
+      // one end of the tunnel than the other. Outer edges over-extend past the
+      // wall by the shear so the slant never opens a sliver at the wall.
+      const sh = (data.taper || 0) * data.half * HALFW;
+      placeBlock(b.left, -HALFW - Math.abs(sh), (data.cx - data.half) * HALFW, z, op, -sh);
+      placeBlock(b.right, (data.cx + data.half) * HALFW, HALFW + Math.abs(sh), z, op, sh);
     }
 
     for (let i = 0; i < bonusPool.length; i++) {
@@ -395,12 +400,19 @@ const api = {
   },
 };
 
-function placeBlock(block, x0, x1, z, op) {
+function placeBlock(block, x0, x1, z, op, shear) {
   const w = x1 - x0;
   if (w <= 0.06 || op <= 0.01) { block.visible = false; return; }   // hide once fully faded
   block.visible = true;
-  block.position.set((x0 + x1) / 2, 0, z);
-  block.scale.set(w, FY * 2, 0.7);
+  // Manual translate+scale matrix with an x-by-y shear term: `shear` is the
+  // inner edge's x-shift at the tunnel top (ny=+1); local ly=±0.5 maps to
+  // ny=±1, hence the 2x. shear=0 is exactly the old position/scale placement.
+  block.matrix.set(
+    w, 2 * (shear || 0), 0, (x0 + x1) / 2,
+    0, FY * 2,           0, 0,
+    0, 0,                0.7, z,
+    0, 0,                0, 1
+  );
   block.material.opacity = op * 0.85;                               // panel fades faster (see-through)
   if (block.children[0]) block.children[0].material.opacity = Math.min(1, op + 0.7);  // edge frame stays crisp
 }

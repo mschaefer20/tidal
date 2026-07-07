@@ -11,7 +11,7 @@
   const PREMIUM_KEY = "tidal-premium";
 
   // ---- MUST MATCH App Store Connect + RevenueCat -------------------------
-  const RC_API_KEY = "appl_REPLACE_WITH_YOUR_REVENUECAT_IOS_KEY";
+  const RC_API_KEY = "appl_VqkYGcKDGCJkcCEUOmCJPZydJYW";
   const P_PREMIUM = "tidal_premium";                 // non-consumable
   const ENTITLEMENT = "premium";                     // RevenueCat entitlement id
   const COIN_PACKS = { 500: "tidal_coins_500", 1500: "tidal_coins_1500" }; // consumables

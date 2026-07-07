@@ -66,21 +66,22 @@ Keyboard (browser only): Space/Enter flip, Esc/P pause.
   - ✅ **Game Center** code + CI done (`ENABLED=true`). Needs: GC enabled on the App
     ID, leaderboard `tidal_high_scores` created + localized + attached to the v1.1
     version. Goes Live when v1.1 is approved. Works in sandbox now.
-  - 🟡 **IAP (RevenueCat)** code done in `store.js`. Product IDs: `tidal_premium`
-    (non-consumable, entitlement `premium`), `tidal_coins_500`, `tidal_coins_1500`
-    (consumables). **TODO:** paste the RevenueCat iOS key into `RC_API_KEY` in
-    `store.js`; create the products in App Store Connect (needs Paid Apps
-    Agreement) + RevenueCat; sandbox-test.
+  - ✅ **IAP (RevenueCat)** DONE + sandbox-verified on device (2026-07-08):
+    key wired in `store.js`, products live in App Store Connect (Ready to
+    Submit, $3.99/$0.99/$1.99) + RevenueCat, entitlement `premium` attached to
+    `tidal_premium`, Paid Apps Agreement active. Shop shows owned state +
+    surfaces store errors; store dispatches `tidal-premium-change` on async
+    entitlement sync. IAPs must be attached to the 1.1 version page at submit.
   - 🔲 **Rewarded ads (AdMob)** — NOT started. `watchAd()` in `store.js` is still a
     stub; the Watch-Ad continue button was removed in the v1.0 cleanup (recover
     from git). Needs AdMob account + `@capacitor-community/admob` + privacy labels.
 
 ## Known issues / TODO (see `V1.1-CHECKLIST.md` for detail)
-- **Music inaudible on the phone speaker** (fine in headphones): the tracks rely on
-  ~30–65 Hz sub-bass that iPhone speakers can't reproduce. Fix in `fx.js` `TRACKS`:
-  raise an octave + add a mid-range harmonic. (High-value; hits most users.)
-- Finish IAP (key + products), then AdMob, then EU trader status.
-- Bump the App Store Connect **1.1 version** record + attach build + fill "What's New".
+- ✅ Music-on-speaker FIXED (arp up an octave, mid harmonic carries the bass) —
+  verify on the device speaker in the final build.
+- **Ship v1.1:** final Codemagic build → attach build + 3 IAPs + `tidal_high_scores`
+  leaderboard to the 1.1 version page + What's New → submit (all reviewed together).
+- After v1.1: AdMob rewarded ads (v1.2), EU trader status.
 
 ## The stubs (so the game stays playable on web)
 `window.TidalStore` (IAP/coins) and `window.TidalGC` (Game Center) both no-op or

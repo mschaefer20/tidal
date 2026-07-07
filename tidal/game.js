@@ -373,7 +373,10 @@
 
   // Same barrier, positioned by depth instead of y (3D mode).
   function spawnBar3D(d) {
-    const gap = gapWidth();
+    let gap = gapWidth();
+    // Orbital 4: each gap varies up to ±20% so the tunnel reads less uniform
+    // (worst case ~77px vs the 26px orb — tight but fair).
+    if (orbital === 4) gap *= 0.8 + Math.random() * 0.4;
     const gapX = randomGapX(gap);
     bars.push({ d, gapX, gapW: gap, passed: false });
     if (Math.random() < 0.6) {

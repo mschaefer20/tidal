@@ -1485,6 +1485,8 @@
   // ?shot=N → posed screenshot scene. Wait for `load` so the WebGL engine
   // module (deferred) is ready, otherwise 3D orbitals fall back to canvas.
   if (SHOT && SHOTS[SHOT]) window.addEventListener("load", () => setupShot(SHOTS[SHOT]));
+  // ?screen=shop → open the Shop directly (for IAP review screenshots).
+  if (params.get("screen") === "shop") window.addEventListener("load", () => { refreshShop(); showScreen("shop"); });
 
   // ---- PWA registration ----------------------------------------------------
   if ("serviceWorker" in navigator) {

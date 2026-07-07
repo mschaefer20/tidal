@@ -18,6 +18,11 @@
 
   let coins = Math.max(0, Number(localStorage.getItem(COINS_KEY) || 0));
   let premium = localStorage.getItem(PREMIUM_KEY) === "1";
+  let lastError = "";                 // last store failure, for the shop status line
+
+  function errMsg(e) {
+    return (e && (e.message || e.errorMessage || e.code)) || String(e || "unknown error");
+  }
 
   function save() {
     localStorage.setItem(COINS_KEY, String(coins));
@@ -51,14 +56,20 @@
     hasPremium() { return premium; },
     coinMultiplier() { return premium ? 2 : 1; },
 
+    lastError() { return lastError; },
+
     async buyPremium() {                 // non-consumable → RevenueCat entitlement
       const p = rc();
       if (!p) { premium = true; save(); return true; }        // web/dev fallback
+      lastError = "";
       try {
         const res = await purchaseId(P_PREMIUM);
         applyCustomerInfo(res && res.customerInfo);
         return premium;
-      } catch (e) { return false; }       // includes user-cancelled
+      } catch (e) {
+        if (!(e && e.userCancelled)) lastError = errMsg(e);
+        return false;
+      }
     },
 
     async buyCoins(amount) {             // consumable → grant coins locally on success
@@ -66,20 +77,25 @@
       if (!p) { coins += amount; save(); return true; }       // web/dev fallback
       const id = COIN_PACKS[amount];
       if (!id) return false;
+      lastError = "";
       try {
         await purchaseId(id);
         coins += amount; save();
         return true;
-      } catch (e) { return false; }
+      } catch (e) {
+        if (!(e && e.userCancelled)) lastError = errMsg(e);
+        return false;
+      }
     },
 
     async restore() {                    // App Store requirement (non-consumables)
       const p = rc();
       if (!p) return premium;
+      lastError = "";
       try {
         const res = await p.restorePurchases();
         applyCustomerInfo(res && res.customerInfo);
-      } catch (e) { /* ignore */ }
+      } catch (e) { lastError = errMsg(e); }
       return premium;
     },
 

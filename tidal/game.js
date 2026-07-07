@@ -1381,6 +1381,8 @@
       u.disabled = !!owned;
       u.classList.toggle("owned", !!owned);
     }
+    const err = window.TidalStore && TidalStore.lastError && TidalStore.lastError();
+    setText("shop-status", err ? "Store: " + err : "");
   }
 
   // Shop buttons (purchases are async via RevenueCat)

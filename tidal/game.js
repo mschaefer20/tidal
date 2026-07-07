@@ -1366,18 +1366,20 @@
   });
 
   function refreshCoinsUI() {
-    setText("title-coins", coinsNow() + " coins");
+    const prem = window.TidalStore && TidalStore.hasPremium();
+    setText("title-coins", coinsNow() + " coins" + (prem ? " · 2×" : ""));
     const sf = document.getElementById("btn-startfrom");
     if (sf) sf.hidden = unlocked < 2;        // unlocks after you first reach orbital 2 (score 100)
   }
 
   function refreshShop() {
-    setText("shop-balance", coinsNow() + " coins");
+    const owned = window.TidalStore && TidalStore.hasPremium();
+    setText("shop-balance", coinsNow() + " coins" + (owned ? " · Premium 2× active" : ""));
     const u = document.getElementById("shop-premium");
     if (u) {
-      const owned = window.TidalStore && TidalStore.hasPremium();
       u.textContent = owned ? "Tidal Premium — Owned ✓" : "Tidal Premium — 2× Coins";
       u.disabled = !!owned;
+      u.classList.toggle("owned", !!owned);
     }
   }
 
@@ -1387,6 +1389,7 @@
       e.stopPropagation();
       if (!window.TidalStore) return;
       const a = b.dataset.shop;
+      if (a === "premium" && TidalStore.hasPremium()) { refreshShop(); return; }  // already owned
       b.disabled = true;
       const done = () => { b.disabled = false; refreshShop(); refreshCoinsUI(); };
       if (a === "premium") TidalStore.buyPremium().then(done);
@@ -1395,6 +1398,10 @@
       else if (a === "restore") TidalStore.restore().then(done);
     });
   });
+
+  // The store syncs entitlements asynchronously (boot, purchase, restore) —
+  // re-render the premium/coin UI whenever that lands.
+  window.addEventListener("tidal-premium-change", () => { refreshShop(); refreshCoinsUI(); });
 
   // ---- Start From: begin your run at any orbital you've reached ------------
   function showStartFrom() {

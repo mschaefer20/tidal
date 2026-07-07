@@ -28,8 +28,12 @@
   }
   function applyCustomerInfo(ci) {
     if (ci && ci.entitlements && ci.entitlements.active) {
+      const had = premium;
       premium = !!ci.entitlements.active[ENTITLEMENT];
       save();
+      // Entitlements can land after the UI drew (boot sync, slow purchase
+      // confirm, restore) — let screens re-render the premium state.
+      if (premium !== had) window.dispatchEvent(new CustomEvent("tidal-premium-change"));
     }
   }
   async function purchaseId(id) {

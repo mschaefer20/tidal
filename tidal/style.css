@@ -176,6 +176,13 @@ html, body {
 }
 .btn:active { transform: scale(0.96); filter: brightness(1.1); }
 .btn:disabled { opacity: 0.4; pointer-events: none; }
+.btn.owned {                       /* premium owned: clearly "yours", not greyed out */
+  opacity: 1;
+  pointer-events: none;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--right);
+}
 .btn.ghost {
   color: var(--text);
   background: transparent;

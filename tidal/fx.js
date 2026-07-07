@@ -87,11 +87,11 @@
   // ---- music: one dark synth track per Orbital -----------------------------
   // Same low/bass DNA throughout; key, tempo, waveform and brightness shift.
   const TRACKS = {
-    1: { arp: [110.00, 130.81, 164.81, 220.00, 164.81, 130.81], roots: [55.00], step: 240, type: "sine", lp: 680, gain: 0.10, bass: 0.20 },                       // I — calm Am
-    2: { arp: [130.81, 164.81, 196.00, 246.94, 261.63, 246.94, 196.00, 164.81], roots: [65.41, 65.41, 98.00, 65.41], step: 200, type: "triangle", lp: 820, gain: 0.10, bass: 0.24 }, // II — ST Cmaj7
-    3: { arp: [146.83, 174.61, 220.00, 261.63, 293.66, 261.63, 220.00, 174.61], roots: [73.42, 73.42, 98.00, 110.00], step: 220, type: "triangle", lp: 900, gain: 0.10, bass: 0.22 }, // III — warm D dorian
-    4: { arp: [164.81, 196.00, 246.94, 329.63, 246.94, 196.00], roots: [82.41, 82.41, 110.00, 98.00], step: 160, type: "sawtooth", lp: 1000, gain: 0.09, bass: 0.24 },               // IV — driving Em
-    5: { arp: [110.00, 130.81, 155.56, 185.00, 196.00, 185.00, 155.56, 130.81], roots: [55.00, 58.27, 55.00, 49.00], step: 150, type: "sawtooth", lp: 900, gain: 0.10, bass: 0.28 }, // V — ominous boss
+    1: { arp: [110.00, 130.81, 164.81, 220.00, 164.81, 130.81], roots: [55.00], step: 240, type: "sine", lp: 1100, gain: 0.10, bass: 0.20 },                       // I — calm Am
+    2: { arp: [130.81, 164.81, 196.00, 246.94, 261.63, 246.94, 196.00, 164.81], roots: [65.41, 65.41, 98.00, 65.41], step: 200, type: "triangle", lp: 1300, gain: 0.10, bass: 0.24 }, // II — ST Cmaj7
+    3: { arp: [146.83, 174.61, 220.00, 261.63, 293.66, 261.63, 220.00, 174.61], roots: [73.42, 73.42, 98.00, 110.00], step: 220, type: "triangle", lp: 1400, gain: 0.10, bass: 0.22 }, // III — warm D dorian
+    4: { arp: [164.81, 196.00, 246.94, 329.63, 246.94, 196.00], roots: [82.41, 82.41, 110.00, 98.00], step: 160, type: "sawtooth", lp: 1600, gain: 0.09, bass: 0.24 },               // IV — driving Em
+    5: { arp: [110.00, 130.81, 155.56, 185.00, 196.00, 185.00, 155.56, 130.81], roots: [55.00, 58.27, 55.00, 49.00], step: 150, type: "sawtooth", lp: 1400, gain: 0.10, bass: 0.28 }, // V — ominous boss
   };
   function trk() { return TRACKS[currentTrack] || TRACKS[1]; }
 
@@ -112,12 +112,15 @@
     const T = trk();
     const i = step % T.arp.length;
     const noteDur = (T.step / 1000) * 1.5;
-    mvoice(T.arp[i], T.type, noteDur, T.gain);              // arpeggio pulse
+    // Arp plays an octave above the TRACKS values (~220-660 Hz): iPhone
+    // speakers roll off steeply below ~200 Hz, so at written pitch the music
+    // was inaudible on the phone speaker (fine in headphones).
+    mvoice(T.arp[i] * 2, T.type, noteDur, T.gain);          // arpeggio pulse
     if (i === 0) {
       const barLen = (T.arp.length * T.step) / 1000;
       const root = T.roots[Math.floor(step / T.arp.length) % T.roots.length];
-      mvoice(root, "sine", barLen, T.bass);                // bass drone (the bar)
-      mvoice(root / 2, "sine", barLen, T.bass * 0.55);     // sub octave
+      mvoice(root, "sine", barLen, T.bass);                // bass drone (headphones/full-range)
+      mvoice(root * 2, "triangle", barLen, T.bass * 0.5);  // octave-up harmonic so the bassline carries on small speakers (replaces the /2 sub, which sat below 55 Hz)
     }
     step++;
   }

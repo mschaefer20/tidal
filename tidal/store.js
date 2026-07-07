@@ -14,7 +14,7 @@
   const RC_API_KEY = "appl_VqkYGcKDGCJkcCEUOmCJPZydJYW";
   const P_PREMIUM = "tidal_premium";                 // non-consumable
   const ENTITLEMENT = "premium";                     // RevenueCat entitlement id
-  const COIN_PACKS = { 500: "tidal_coins_500", 1500: "tidal_coins_1500" }; // consumables
+  const COIN_PACKS = { 200: "tidal_coins_200", 500: "tidal_coins_500", 800: "tidal_coins_800" }; // consumables
 
   let coins = Math.max(0, Number(localStorage.getItem(COINS_KEY) || 0));
   let premium = localStorage.getItem(PREMIUM_KEY) === "1";

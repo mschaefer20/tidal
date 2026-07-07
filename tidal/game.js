@@ -1395,8 +1395,9 @@
       b.disabled = true;
       const done = () => { b.disabled = false; refreshShop(); refreshCoinsUI(); };
       if (a === "premium") TidalStore.buyPremium().then(done);
+      else if (a === "coins200") TidalStore.buyCoins(200).then(done);
       else if (a === "coins500") TidalStore.buyCoins(500).then(done);
-      else if (a === "coins1500") TidalStore.buyCoins(1500).then(done);
+      else if (a === "coins800") TidalStore.buyCoins(800).then(done);
       else if (a === "restore") TidalStore.restore().then(done);
     });
   });

@@ -48,7 +48,10 @@
   // Speed ramps over the FIRST DIFF_RAMP points of each orbital, then holds —
   // so it resets to slow at the start of every orbital.
   const DIFF_RAMP = 50;
-  function difficulty() { return Math.min(1, (score - orbitalStartScore) / DIFF_RAMP); }
+  // After a continue, don't drop all the way back to crawl speed: hold at least
+  // CONTINUE_DIFF_FLOOR of the ramp (0 = start speed, 1 = max). Reset each orbital.
+  const CONTINUE_DIFF_FLOOR = 0.25;
+  function difficulty() { return Math.max(diffFloor, Math.min(1, (score - orbitalStartScore) / DIFF_RAMP)); }
   function scrollSpeed() { return SCROLL_START + (SCROLL_MAX - SCROLL_START) * difficulty(); }
   function depthSpeedNow() {
     const base = DEPTH_SPEED_START + (DEPTH_SPEED_MAX - DEPTH_SPEED_START) * difficulty();
@@ -160,7 +163,7 @@
 
   // ---- State ---------------------------------------------------------------
   let orb, gravSide, bars, bonuses, scroll, score, running, lastT, rafId, shake, paused;
-  let mode, depthSpeed, flash, intro, travel, orbital, countdown, invuln, orbitalStartScore;
+  let mode, depthSpeed, flash, intro, travel, orbital, countdown, invuln, orbitalStartScore, diffFloor;
   let continues, adUsed;        // continue ladder: count this run + whether the ad was used
   let frozen = false;           // shot mode: freeze the scene to capture a screenshot
   const COUNTDOWN_TIME = 3.0;   // wait + 3-2-1 before each new orbital (2-5)
@@ -224,6 +227,7 @@
     shotMode = false;
     frozen = false;
     orbitalStartScore = 0;
+    diffFloor = 0;
     continues = 0;
     adUsed = false;
     g3Time = 0;
@@ -255,6 +259,7 @@
   function enterOrbital(n) {
     orbital = n;
     orbitalStartScore = score;   // speed ramp resets at the start of each orbital
+    diffFloor = 0;               // (a continue re-raises this afterward)
     setUnlocked(n);
     mode = ORBITALS[n - 1].dim;
     flash = settings.reduceMotion ? 0.25 : 1;
@@ -1264,6 +1269,7 @@
     screens.continue.classList.add("hidden");
     invuln = 2.0;                    // brief grace after the revive countdown
     enterOrbital(orbital);           // rebuild the current orbital cleanly + 3-2-1
+    diffFloor = CONTINUE_DIFF_FLOOR; // resume at 25% speed, not a full crawl (enterOrbital cleared it)
     resume();
   }
 

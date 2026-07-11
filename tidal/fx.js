@@ -92,6 +92,7 @@
     3: { arp: [146.83, 174.61, 220.00, 261.63, 293.66, 261.63, 220.00, 174.61], roots: [73.42, 73.42, 98.00, 110.00], step: 220, type: "triangle", lp: 1400, gain: 0.10, bass: 0.22 }, // III — warm D dorian
     4: { arp: [164.81, 196.00, 246.94, 329.63, 246.94, 196.00], roots: [82.41, 82.41, 110.00, 98.00], step: 160, type: "sawtooth", lp: 1600, gain: 0.09, bass: 0.24 },               // IV — driving Em
     5: { arp: [110.00, 130.81, 155.56, 185.00, 196.00, 185.00, 155.56, 130.81], roots: [55.00, 58.27, 55.00, 49.00], step: 150, type: "sawtooth", lp: 1400, gain: 0.10, bass: 0.28 }, // V — ominous boss
+    6: { arp: [123.47, 164.81, 185.00, 246.94, 277.18, 246.94, 185.00, 164.81], roots: [61.74, 61.74, 82.41, 92.50], step: 190, type: "triangle", lp: 1300, gain: 0.10, bass: 0.24 }, // VI — floaty B suspended (wormholes)
   };
   function trk() { return TRACKS[currentTrack] || TRACKS[1]; }
 
@@ -167,7 +168,7 @@
     // Switch the music track to the given Orbital (restarts the loop on the
     // new key/tempo; running notes ring out so the change feels continuous).
     setOrbital(n) {
-      currentTrack = Math.max(1, Math.min(5, n || 1));
+      currentTrack = Math.max(1, Math.min(6, n || 1));
       if (musicOn && ctx) startMusic();
     },
   };

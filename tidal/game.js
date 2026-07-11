@@ -26,6 +26,13 @@
   const BAR_TH = 18;                 // barrier thickness
   const GAP_START = 150;             // gap width at start
   const GAP_MIN = 96;
+
+  // ---- Orbital 6 "Wormholes": safe paired portals that reposition you -------
+  const WH_R = 17;                   // ring radius (entry hit test)
+  const WH_TELEGRAPH = 0.4;          // s of warning-ring before a pair goes live
+  const WH_LOCK = 0.5;               // s the pair is inert after a teleport (no re-entry loop)
+  const WH_EVERY_MIN = 3.5;          // s between pairs (min) — tune later
+  const WH_EVERY_MAX = 5.5;          // s between pairs (max)
   const BAR_SPACING = 230;           // vertical distance between barriers
 
   // ---- Orbital progression -------------------------------------------------
@@ -40,6 +47,7 @@
     { n: 3, dim: "2d" },   // 2D binary
     { n: 4, dim: "3d" },   // 3D binary tunnel
     { n: 5, dim: "2d" },   // black-hole survival arena
+    { n: 6, dim: "2d" },   // wormholes (wave two intro)
   ];
   // Score to reach orbital n. Dev mode spaces them 7 apart (7/14/21/28);
   // regular mode 100 apart (100/200/300/400).
@@ -57,7 +65,7 @@
     const base = DEPTH_SPEED_START + (DEPTH_SPEED_MAX - DEPTH_SPEED_START) * difficulty();
     return base * (orbital >= 4 ? O4_SPEED_MULT : 1);
   }
-  const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V"];
+  const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V", "ORBITAL VI"];
 
   // Global pace. NORMAL is the shipped play speed (75% of the old baseline).
   // DEV_SLOW is a toggleable slow-motion for development/testing.
@@ -164,6 +172,7 @@
   // ---- State ---------------------------------------------------------------
   let orb, gravSide, bars, bonuses, scroll, score, running, lastT, rafId, shake, paused;
   let mode, depthSpeed, flash, intro, travel, orbital, countdown, invuln, orbitalStartScore, diffFloor;
+  let wormholes, nextWormhole;  // Orbital 6: active portal pairs + spawn timer
   let continues, adUsed;        // continue ladder: count this run + whether the ad was used
   let frozen = false;           // shot mode: freeze the scene to capture a screenshot
   const COUNTDOWN_TIME = 3.0;   // wait + 3-2-1 before each new orbital (2-5)
@@ -182,8 +191,8 @@
   // and ?slow to boot in dev slow-motion.
   const params = new URLSearchParams(location.search);
   const DEV_START_3D = params.has("3d") || params.get("mode") === "3d";
-  // Dev shortcut: ?orbital=N (1-5) boots every run straight into that Orbital.
-  const DEV_START_ORBITAL = Math.max(0, Math.min(5, Number(params.get("orbital")) || 0));
+  // Dev shortcut: ?orbital=N (1-6) boots every run straight into that Orbital.
+  const DEV_START_ORBITAL = Math.max(0, Math.min(6, Number(params.get("orbital")) || 0));
   // Screenshot helper: ?shot=N drops into a posed scene (score/best/orbital, no death).
   const SHOT = Math.max(0, Math.min(5, Number(params.get("shot")) || 0));
   const SHOTS = {
@@ -199,7 +208,7 @@
   let devMode = params.has("dev") || DEV_START_3D || DEV_START_ORBITAL > 0;
   // Highest orbital the player has reached — unlocks "Start From" (persisted).
   const UNLOCK_KEY = "tidal-unlocked";
-  let unlocked = Math.max(1, Math.min(5, Number(localStorage.getItem(UNLOCK_KEY) || 1)));
+  let unlocked = Math.max(1, Math.min(6, Number(localStorage.getItem(UNLOCK_KEY) || 1)));
   function setUnlocked(n) {
     if (n > unlocked) { unlocked = n; localStorage.setItem(UNLOCK_KEY, String(unlocked)); }
   }
@@ -228,6 +237,7 @@
     frozen = false;
     orbitalStartScore = 0;
     diffFloor = 0;
+    wormholes = []; nextWormhole = randRange(WH_EVERY_MIN, WH_EVERY_MAX);
     continues = 0;
     adUsed = false;
     g3Time = 0;
@@ -364,6 +374,19 @@
 
   function randomGapX(gap) {
     return WALL + 10 + Math.random() * (W - 2 * WALL - 20 - gap);
+  }
+
+  function randRange(a, b) { return a + Math.random() * (b - a); }
+  function orbitalHasWormholes() { return orbital === 6; }
+
+  // Spawn one linked portal pair above the screen: two rings on opposite sides,
+  // scrolling down together. Enter either → snap to the other's x (Orbital 6).
+  function spawnWormhole() {
+    const inset = WALL + 45;
+    const jitter = () => (Math.random() - 0.5) * 40;
+    const xa = inset + jitter();
+    const xb = W - inset + jitter();
+    wormholes.push({ y: -30, xa, xb, age: 0, lock: 0 });
   }
 
   function spawnBar(y) {
@@ -576,6 +599,42 @@
         addScore(5);
         sfx("coin"); buzz("light"); if (window.TidalStore) TidalStore.addCoins(TidalStore.coinMultiplier());
       }
+    }
+
+    if (orbitalHasWormholes()) updateWormholes(dt, dy);
+  }
+
+  // Orbital 6: scroll portal pairs, spawn on a timer, teleport on entry.
+  function updateWormholes(dt, dy) {
+    for (const w of wormholes) {
+      w.y += dy;
+      w.age += dt;
+      if (w.lock > 0) w.lock = Math.max(0, w.lock - dt);
+    }
+    wormholes = wormholes.filter((w) => w.y < H + 40);   // scroll off → disappear
+
+    // spawn cadence: at most one pair on screen at a time
+    nextWormhole -= dt;
+    if (nextWormhole <= 0 && wormholes.length === 0) {
+      spawnWormhole();
+      nextWormhole = randRange(WH_EVERY_MIN, WH_EVERY_MAX);
+    }
+
+    // teleport: when an active ring reaches the orb's row and lines up in x
+    for (const w of wormholes) {
+      if (w.age < WH_TELEGRAPH || w.lock > 0) continue;   // still telegraphing / locked
+      if (Math.abs(w.y - ORB_Y) > WH_R) continue;         // ring not at the orb's row yet
+      const inA = Math.abs(orb.x - w.xa) < WH_R;
+      const inB = Math.abs(orb.x - w.xb) < WH_R;
+      if (!inA && !inB) continue;
+      orb.x = inA ? w.xb : w.xa;   // pop out the twin's x (horizontal reposition)
+      orb.vx = 0;
+      w.lock = WH_LOCK;            // both rings inert briefly so we don't loop
+      flash = Math.max(flash, 0.4);
+      sfx("start"); buzz("medium");
+      // reward the read: a couple coins drift down toward where you landed
+      bonuses.push({ x: orb.x, y: ORB_Y - 34, taken: false });
+      bonuses.push({ x: orb.x, y: ORB_Y - 66, taken: false });
     }
   }
 
@@ -820,6 +879,8 @@
 
   function draw2D() {
     drawPlanets();
+
+    if (orbitalHasWormholes()) for (const w of wormholes) drawWormhole(w);
 
     // barriers
     for (const b of bars) {
@@ -1114,6 +1175,42 @@
     // right segment
     rr(b.gapX + b.gapW, b.y, W - WALL - (b.gapX + b.gapW), BAR_TH, 6); ctx.fill();
     ctx.shadowBlur = 0;
+  }
+
+  function drawWormhole(w) {
+    const active = w.age >= WH_TELEGRAPH;
+    const COL = "#b884ff";               // matched pair color → shows they're linked
+    // faint link line between the two rings
+    ctx.save();
+    ctx.globalAlpha = active ? 0.28 : 0.12;
+    ctx.strokeStyle = COL; ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 7]);
+    ctx.beginPath(); ctx.moveTo(w.xa, w.y); ctx.lineTo(w.xb, w.y); ctx.stroke();
+    ctx.restore();
+
+    for (const cx of [w.xa, w.xb]) {
+      if (!active) {
+        // telegraph: a growing warning ring, no swirl yet
+        const t = Math.min(1, w.age / WH_TELEGRAPH);
+        ctx.save();
+        ctx.globalAlpha = 0.15 + 0.35 * t;
+        ctx.strokeStyle = COL; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(cx, w.y, WH_R * t, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+        continue;
+      }
+      const dim = w.lock > 0 ? 0.4 : 1;   // fade briefly after a jump
+      ctx.save();
+      ctx.globalAlpha = dim;
+      ctx.strokeStyle = COL; ctx.lineWidth = 3;
+      ctx.shadowBlur = 16; ctx.shadowColor = COL;
+      ctx.beginPath(); ctx.arc(cx, w.y, WH_R, 0, Math.PI * 2); ctx.stroke();
+      // rotating inner swirl arc
+      const a0 = w.age * 4;
+      ctx.globalAlpha = dim * 0.9; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, w.y, WH_R * 0.55, a0, a0 + Math.PI * 1.2); ctx.stroke();
+      ctx.restore();
+    }
   }
 
   function glowCircle(x, y, r, color, strong) {

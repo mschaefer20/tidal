@@ -34,8 +34,8 @@
   const WH_EVERY_MIN = 1.6;          // s between pairs (min) — tune later
   const WH_EVERY_MAX = 2.8;          // s between pairs (max)
   const WH_MAX_PAIRS = 2;            // how many pairs can share the screen
-  const WH_GAP_MIN = 80;             // horizontal distance between a pair's two rings
-  const WH_GAP_MAX = 140;
+  const WH_GAP_MIN = 96;             // horizontal distance between a pair's two rings
+  const WH_GAP_MAX = 168;
   const BAR_SPACING = 230;           // vertical distance between barriers
 
   // ---- Orbital progression -------------------------------------------------

@@ -379,13 +379,13 @@ const api = {
     camera.position.z = (s.reduceMotion ? 16 : 54) - (s.reduceMotion ? 7 : 45) * e;
     camera.position.x = 0;           // locked: tunnel stays fixed, only the orb moves
     camera.position.y = 0.6;
-    if (s.orbital >= 5 && !s.reduceMotion) {   // black-hole gravitational tremor
+    if (s.orbital === 5 && !s.reduceMotion) {   // black-hole gravitational tremor (boss only)
       camera.position.x += (Math.random() - 0.5) * 0.13;
       camera.position.y += (Math.random() - 0.5) * 0.13;
     }
     camera.lookAt(0, -0.3, -6);
-    if (scene.fog) scene.fog.color.set(s.orbital >= 5 ? 0x1a0509 : 0x070617);  // boss runs blood-red
-    const orbitalGlow = (s.orbital >= 4 ? 0.18 : 0) + (s.orbital >= 5 ? 0.18 : 0);
+    if (scene.fog) scene.fog.color.set(s.orbital === 5 ? 0x1a0509 : 0x070617);  // boss only runs blood-red
+    const orbitalGlow = (s.orbital === 4 ? 0.18 : 0) + (s.orbital === 5 ? 0.18 : 0);
     bloom.strength = 0.32 + orbitalGlow + (s.reduceMotion ? 0 : (1 - e) * 0.8); // glow rises with orbital + warp
 
     const gz = (s.travel * DZ) % GS;

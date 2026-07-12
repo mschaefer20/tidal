@@ -34,8 +34,8 @@
   const WH_EVERY_MIN = 1.6;          // s between pairs (min) — tune later
   const WH_EVERY_MAX = 2.8;          // s between pairs (max)
   const WH_MAX_PAIRS = 2;            // how many pairs can share the screen
-  const WH_GAP_MIN = 110;            // horizontal distance between a pair's two rings
-  const WH_GAP_MAX = 190;
+  const WH_GAP_MIN = 80;             // horizontal distance between a pair's two rings
+  const WH_GAP_MAX = 140;
   const BAR_SPACING = 230;           // vertical distance between barriers
 
   // ---- Orbital progression -------------------------------------------------
@@ -383,13 +383,18 @@
   function orbitalHasWormholes() { return orbital === 6; }
 
   // Spawn one linked portal pair above the screen: two rings a moderate gap
-  // apart, placed at a random spot, scrolling down together. Enter either →
-  // snap to the other's x (Orbital 6).
+  // apart, placed at a random x, scrolling down together. Enter either → snap
+  // to the other's x (Orbital 6). Vertically it lands on a barrier MID-row
+  // (equidistant between walls) and stays there — bars scroll at the same rate.
   function spawnWormhole() {
     const half = randRange(WH_GAP_MIN, WH_GAP_MAX) / 2;
     const minC = WALL + 30 + half, maxC = W - WALL - 30 - half;
     const cx = randRange(minC, maxC);
-    wormholes.push({ y: -30, xa: cx - half, xb: cx + half, age: 0, lock: 0 });
+    const ref = bars.length ? bars[0].y : -40;    // any bar → the grid phase
+    let wy = ref - BAR_SPACING / 2;                // half a spacing = between rows
+    while (wy > -20) wy -= BAR_SPACING;            // put it just above the screen top
+    while (wy <= -20 - BAR_SPACING) wy += BAR_SPACING;
+    wormholes.push({ y: wy, xa: cx - half, xb: cx + half, age: 0, lock: 0 });
   }
 
   function spawnBar(y) {

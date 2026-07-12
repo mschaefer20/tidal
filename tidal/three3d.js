@@ -21,6 +21,8 @@ const FY = 4.6;
 const DZ = 4.6;
 const BAR_POOL = 16;
 const BONUS_POOL = 10;
+const WH_POOL = 4;               // Orbital 7: max wormhole pairs rendered
+const WH_COL = 0xb884ff;         // matches the 2D portal color
 const GS = 4;
 const GN = 46;
 
@@ -30,7 +32,7 @@ let floorGrid, ceilGrid;
 let wellL, wellR, pullLine;   // Orbital 4: visible gravity wells + pull line
 const UP = new THREE.Vector3(0, 1, 0);
 const _dir = new THREE.Vector3();
-let barPool = [], bonusPool = [];
+let barPool = [], bonusPool = [], whPool = [];
 let toonMap;
 let inited = false;
 
@@ -296,6 +298,22 @@ const api = {
       bonusPool.push(m);
     }
 
+    // Orbital 7 wormhole rings — glowing purple tori (bloom makes them pop)
+    const whGeo = new THREE.TorusGeometry(0.62, 0.1, 12, 32);
+    for (let i = 0; i < WH_POOL; i++) {
+      const pair = { a: null, b: null };
+      for (const k of ["a", "b"]) {
+        const ring = new THREE.Mesh(
+          whGeo,
+          new THREE.MeshBasicMaterial({ color: WH_COL, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })
+        );
+        ring.visible = false;
+        scene.add(ring);
+        pair[k] = ring;
+      }
+      whPool.push(pair);
+    }
+
     composer = new EffectComposer(renderer);
     composer.setPixelRatio(renderer.getPixelRatio());   // render passes at full res, no upscaling
     composer.addPass(new RenderPass(scene, camera));
@@ -319,6 +337,7 @@ const api = {
   reset() {
     for (const b of barPool) { b.left.visible = false; b.right.visible = false; }
     for (const m of bonusPool) m.visible = false;
+    for (const p of whPool) { p.a.visible = false; p.b.visible = false; }
   },
 
   render(s) {
@@ -394,6 +413,25 @@ const api = {
       m.visible = true;
       m.position.set(data.nx * HALFW, 0, -data.d * DZ);
       m.rotation.y += 0.06;
+    }
+
+    // Orbital 7 wormhole rings
+    for (let i = 0; i < whPool.length; i++) {
+      const pair = whPool[i], data = s.wormholes && s.wormholes[i];
+      if (!data) { pair.a.visible = false; pair.b.visible = false; continue; }
+      const z = -data.d * DZ;
+      const tele = Math.min(1, data.age / 0.4);        // fade/grow in during telegraph
+      const op = (data.lock > 0 ? 0.4 : 0.9) * tele;
+      const scl = 0.6 + 0.4 * tele;
+      const spin = data.age * 2;
+      for (const [k, cx] of [["a", data.nxa], ["b", data.nxb]]) {
+        const ring = pair[k];
+        ring.visible = true;
+        ring.position.set(cx * HALFW, 0, z);
+        ring.rotation.z = spin;
+        ring.scale.setScalar(scl);
+        ring.material.opacity = op;
+      }
     }
 
     composer.render();

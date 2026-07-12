@@ -51,6 +51,7 @@
     { n: 4, dim: "3d" },   // 3D binary tunnel
     { n: 5, dim: "2d" },   // black-hole survival arena
     { n: 6, dim: "2d" },   // wormholes (wave two intro)
+    { n: 7, dim: "3d" },   // wormhole tunnel (wave two 3D)
   ];
   // Score to reach orbital n. Dev mode spaces them 7 apart (7/14/21/28);
   // regular mode 100 apart (100/200/300/400).
@@ -68,7 +69,7 @@
     const base = DEPTH_SPEED_START + (DEPTH_SPEED_MAX - DEPTH_SPEED_START) * difficulty();
     return base * (orbital >= 4 ? O4_SPEED_MULT : 1);
   }
-  const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V", "ORBITAL VI"];
+  const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V", "ORBITAL VI", "ORBITAL VII"];
 
   // Global pace. NORMAL is the shipped play speed (75% of the old baseline).
   // DEV_SLOW is a toggleable slow-motion for development/testing.
@@ -195,7 +196,7 @@
   const params = new URLSearchParams(location.search);
   const DEV_START_3D = params.has("3d") || params.get("mode") === "3d";
   // Dev shortcut: ?orbital=N (1-6) boots every run straight into that Orbital.
-  const DEV_START_ORBITAL = Math.max(0, Math.min(6, Number(params.get("orbital")) || 0));
+  const DEV_START_ORBITAL = Math.max(0, Math.min(7, Number(params.get("orbital")) || 0));
   // Screenshot helper: ?shot=N drops into a posed scene (score/best/orbital, no death).
   const SHOT = Math.max(0, Math.min(5, Number(params.get("shot")) || 0));
   const SHOTS = {
@@ -211,7 +212,7 @@
   let devMode = params.has("dev") || DEV_START_3D || DEV_START_ORBITAL > 0;
   // Highest orbital the player has reached — unlocks "Start From" (persisted).
   const UNLOCK_KEY = "tidal-unlocked";
-  let unlocked = Math.max(1, Math.min(6, Number(localStorage.getItem(UNLOCK_KEY) || 1)));
+  let unlocked = Math.max(1, Math.min(7, Number(localStorage.getItem(UNLOCK_KEY) || 1)));
   function setUnlocked(n) {
     if (n > unlocked) { unlocked = n; localStorage.setItem(UNLOCK_KEY, String(unlocked)); }
   }
@@ -367,6 +368,9 @@
         taper: b.taper || 0,
       })),
       bonuses: bonuses.filter((o) => !o.taken && o.d > -1).map((o) => ({ nx: nx(o.x), d: o.d })),
+      wormholes: orbital === 7
+        ? wormholes.filter((w) => w.d > -1).map((w) => ({ d: w.d, nxa: nx(w.xa), nxb: nx(w.xb), age: w.age, lock: w.lock }))
+        : null,
     };
   }
 
@@ -380,7 +384,7 @@
   }
 
   function randRange(a, b) { return a + Math.random() * (b - a); }
-  function orbitalHasWormholes() { return orbital === 6; }
+  function orbitalHasWormholes() { return orbital === 6 || orbital === 7; }
 
   // Spawn one linked portal pair above the screen: two rings a moderate gap
   // apart, placed at a random x, scrolling down together. Enter either → snap
@@ -612,6 +616,51 @@
     if (orbitalHasWormholes()) updateWormholes(dt, dy);
   }
 
+  // Orbital 7: same escape-hatch portals in the 3D tunnel — depth (d) instead
+  // of y. A pair recedes toward the camera; when it reaches the camera plane
+  // and you're lined up with a ring, snap to the twin's x (horizontal hop).
+  function spawnWormhole3D() {
+    const half = randRange(WH_GAP_MIN, WH_GAP_MAX) / 2;
+    const minC = WALL + 30 + half, maxC = W - WALL - 30 - half;
+    const cx = randRange(minC, maxC);
+    const ref = bars.length ? bars[0].d : 0;      // barrier depth grid
+    let wd = ref + DEPTH_SPACING / 2;             // half a spacing = between rings
+    while (wd < D_SPAWN - DEPTH_SPACING) wd += DEPTH_SPACING;
+    while (wd > D_SPAWN) wd -= DEPTH_SPACING;
+    wormholes.push({ d: wd, xa: cx - half, xb: cx + half, age: 0, lock: 0 });
+  }
+
+  function updateWormholes3D(dt, dd) {
+    for (const w of wormholes) {
+      w.d -= dd;
+      w.age += dt;
+      if (w.lock > 0) w.lock = Math.max(0, w.lock - dt);
+    }
+    wormholes = wormholes.filter((w) => w.d > -1);
+
+    nextWormhole -= dt;
+    if (nextWormhole <= 0 && wormholes.length < WH_MAX_PAIRS) {
+      spawnWormhole3D();
+      nextWormhole = randRange(WH_EVERY_MIN, WH_EVERY_MAX);
+    }
+
+    for (const w of wormholes) {
+      if (w.age < WH_TELEGRAPH || w.lock > 0) continue;
+      if (w.d > 0.4 || w.d < -0.4) continue;             // only at the camera plane
+      const inA = Math.abs(orb.x - w.xa) < WH_R + 4;
+      const inB = Math.abs(orb.x - w.xb) < WH_R + 4;
+      if (!inA && !inB) continue;
+      orb.x = inA ? w.xb : w.xa;
+      orb.vx = 0;
+      w.lock = WH_LOCK;
+      flash = Math.max(flash, 0.4);
+      sfx("start"); buzz("medium");
+      bonuses.push({ x: orb.x, d: 1.4, taken: false });   // reward coins arrive next
+      bonuses.push({ x: orb.x, d: 2.2, taken: false });
+      break;
+    }
+  }
+
   // Orbital 6: scroll portal pairs, spawn on a timer, teleport on entry.
   function updateWormholes(dt, dy) {
     for (const w of wormholes) {
@@ -837,6 +886,8 @@
         sfx("coin"); buzz("light"); if (window.TidalStore) TidalStore.addCoins(TidalStore.coinMultiplier());
       }
     }
+
+    if (orbitalHasWormholes()) updateWormholes3D(dt, dd);
 
     // recycle + keep the tunnel populated
     bars = bars.filter((b) => b.d > -1);

@@ -32,6 +32,7 @@ let floorGrid, ceilGrid;
 let wellL, wellR, pullLine;   // Orbital 4: visible gravity wells + pull line
 const UP = new THREE.Vector3(0, 1, 0);
 const _dir = new THREE.Vector3();
+const _side = new THREE.Color();     // reused: orb color from the active skin
 let barPool = [], bonusPool = [], whPool = [];
 let toonMap;
 let inited = false;
@@ -342,7 +343,8 @@ const api = {
 
   render(s) {
     if (!inited) return;
-    const side = s.gravSide > 0 ? TEAL : ROSE;
+    // Orb color comes from the selected skin (falls back to the classic pair).
+    const side = _side.set(s.gravSide > 0 ? (s.orbRight || "#4dd2ff") : (s.orbLeft || "#ff5e7e"));
 
     leftLight.intensity = s.gravSide < 0 ? 20 : 5;
     rightLight.intensity = s.gravSide > 0 ? 20 : 5;

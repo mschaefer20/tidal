@@ -71,6 +71,21 @@
   }
   const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V", "ORBITAL VI", "ORBITAL VII"];
 
+  // Cosmetic orb skins — each recolors the orb's two gravity states (left/right).
+  // Kept deliberately small; prices are in coins (a sink for the coin economy).
+  const SKINS = [
+    { id: "default", name: "Classic", price: 0,   left: "#ff5e7e", right: "#4dd2ff" },
+    { id: "ember",   name: "Ember",   price: 300, left: "#ff6a3c", right: "#ffd24d" },
+    { id: "aurora",  name: "Aurora",  price: 500, left: "#54e0a8", right: "#8f7bff" },
+    { id: "magma",   name: "Magma",   price: 600, left: "#ff3b6b", right: "#ff9d2f" },
+    { id: "frost",   name: "Frost",   price: 800, left: "#dbe7ff", right: "#7fd0ff" },
+  ];
+  function currentSkin() {
+    const id = window.TidalStore ? TidalStore.selectedSkin() : "default";
+    return SKINS.find((s) => s.id === id) || SKINS[0];
+  }
+  function orbColor() { const sk = currentSkin(); return gravSide > 0 ? sk.right : sk.left; }
+
   // Global pace. NORMAL is the shipped play speed (75% of the old baseline).
   // DEV_SLOW is a toggleable slow-motion for development/testing.
   const SPEED_NORMAL = 0.75;
@@ -136,6 +151,7 @@
     continue: document.getElementById("screen-continue"),
     startfrom: document.getElementById("screen-startfrom"),
     shop: document.getElementById("screen-shop"),
+    skins: document.getElementById("screen-skins"),
   };
 
   // ---- Settings (persisted) ------------------------------------------------
@@ -351,7 +367,9 @@
   function build3DState() {
     const halfPlay = (W - 2 * WALL) / 2;
     const nx = (x) => (x - W / 2) / halfPlay;
+    const sk = currentSkin();
     return {
+      orbLeft: sk.left, orbRight: sk.right,   // selected skin recolors the orb
       orbNX: Math.max(-1.2, Math.min(1.2, nx(orb.x))),
       orbNY: orbital === 4 ? (orb.y - H / 2) / (H / 2) : 0,
       wellL: orbital === 4 ? { x: nx(gpL.x), y: (gpL.y - H / 2) / (H / 2) } : null,
@@ -957,12 +975,12 @@
     for (let i = 0; i < orb.trail.length; i++) {
       const a = (i + 1) / orb.trail.length;
       ctx.globalAlpha = a * 0.4;
-      glowCircle(orb.trail[i].x, orb.trail[i].y, ORB_R * (0.4 + a * 0.5), gravSide > 0 ? "#4dd2ff" : "#ff5e7e");
+      glowCircle(orb.trail[i].x, orb.trail[i].y, ORB_R * (0.4 + a * 0.5), orbColor());
     }
     ctx.globalAlpha = 1;
 
     // orb (color shows which way it's being pulled)
-    glowCircle(orb.x, orb.y, ORB_R, gravSide > 0 ? "#4dd2ff" : "#ff5e7e", true);
+    glowCircle(orb.x, orb.y, ORB_R, orbColor(), true);
   }
 
   // ---- Orbital 3 rendering -------------------------------------------------
@@ -995,10 +1013,10 @@
     for (let i = 0; i < orb.trail.length; i++) {
       const a = (i + 1) / orb.trail.length;
       ctx.globalAlpha = a * 0.4;
-      glowCircle(orb.trail[i].x, orb.trail[i].y, ORB_R * (0.4 + a * 0.5), gravSide > 0 ? "#4dd2ff" : "#ff5e7e");
+      glowCircle(orb.trail[i].x, orb.trail[i].y, ORB_R * (0.4 + a * 0.5), orbColor());
     }
     ctx.globalAlpha = 1;
-    glowCircle(orb.x, orb.y, ORB_R, gravSide > 0 ? "#4dd2ff" : "#ff5e7e", true);
+    glowCircle(orb.x, orb.y, ORB_R, orbColor(), true);
   }
 
   // Radial speed-lines drawn on the 2D canvas during the 2D→3D fade, so the
@@ -1101,7 +1119,7 @@
     }
 
     // pull / repel indicator (toward or away from the hole)
-    const color = gravSide > 0 ? "#4dd2ff" : "#ff5e7e";
+    const color = orbColor();
     const ux = orb.x - cx, uy = orb.y - cy;
     const ul = Math.hypot(ux, uy) || 1;
     const reach = gravSide > 0 ? -22 : 22;   // inward when attracting
@@ -1169,10 +1187,10 @@
     for (let i = 0; i < orb.trail.length; i++) {
       const a = (i + 1) / orb.trail.length;
       ctx.globalAlpha = a * 0.35;
-      glowCircle(orb.trail[i].x, ORB_Y, ORB_R * (0.4 + a * 0.5), gravSide > 0 ? "#4dd2ff" : "#ff5e7e");
+      glowCircle(orb.trail[i].x, ORB_Y, ORB_R * (0.4 + a * 0.5), orbColor());
     }
     ctx.globalAlpha = 1;
-    glowCircle(orb.x, ORB_Y, ORB_R, gravSide > 0 ? "#4dd2ff" : "#ff5e7e", true);
+    glowCircle(orb.x, ORB_Y, ORB_R, orbColor(), true);
   }
 
   function tunnelWall(edgeX, color, active) {
@@ -1409,13 +1427,16 @@
     const cost = continueCost();
     const coinsBtn = document.getElementById("cont-coins");
     if (coinsBtn) { coinsBtn.textContent = `Continue — ${cost} coins`; coinsBtn.disabled = coinsNow() < cost; }
+    const adBtn = document.getElementById("cont-ad");
+    if (adBtn) adBtn.hidden = adUsed || !window.TidalStore;   // one free ad-continue per run
     setText("coin-balance", coinsNow() + " coins");
   }
   // Toggle between the choice buttons and the "spend coins?" confirmation.
   function showContinueConfirm(on) {
-    ["cont-coins", "cont-startover", "cont-menu"].forEach((id) => {
+    ["cont-ad", "cont-coins", "cont-startover", "cont-menu"].forEach((id) => {
       const el = document.getElementById(id); if (el) el.hidden = on;
     });
+    if (!on) { const ad = document.getElementById("cont-ad"); if (ad) ad.hidden = adUsed || !window.TidalStore; }
     ["cont-confirm-text", "cont-yes", "cont-no"].forEach((id) => {
       const el = document.getElementById(id); if (el) el.hidden = !on;
     });
@@ -1511,6 +1532,7 @@
       if (a === "play") { devMode = false; start(); }
       else if (a === "startfrom") showStartFrom();
       else if (a === "shop") { refreshShop(); showScreen("shop"); }
+      else if (a === "skins") { refreshSkins(); showScreen("skins"); }
       else if (a === "howto") showScreen("howto");
       else if (a === "settings") { refreshToggles(); showScreen("settings"); }
       else if (a === "back") { showScreen("title"); refreshCoinsUI(); }
@@ -1523,7 +1545,15 @@
     b.addEventListener("click", (e) => {
       e.stopPropagation();
       const a = b.dataset.cont;
-      if (a === "coins") {
+      if (a === "ad") {
+        // One free continue per run via a rewarded ad.
+        if (adUsed || !window.TidalStore) return;
+        b.disabled = true;
+        TidalStore.watchAd().then((ok) => {
+          b.disabled = false;
+          if (ok) { adUsed = true; continues++; doContinue(); }
+        });
+      } else if (a === "coins") {
         // First tap asks for confirmation (so coins aren't spent by accident).
         if (coinsNow() >= continueCost()) showContinueConfirm(true);
       } else if (a === "confirm-yes") {
@@ -1549,6 +1579,32 @@
     setText("title-coins", coinsNow() + " coins" + (prem ? " · 2×" : ""));
     const sf = document.getElementById("btn-startfrom");
     if (sf) sf.hidden = unlocked < 2;        // unlocks after you first reach orbital 2 (score 100)
+  }
+
+  // Skins screen: buy with coins (auto-equips) or select an owned one.
+  function refreshSkins() {
+    setText("skins-balance", coinsNow() + " coins");
+    const list = document.getElementById("skins-list");
+    if (!list) return;
+    list.innerHTML = "";
+    const sel = window.TidalStore ? TidalStore.selectedSkin() : "default";
+    for (const sk of SKINS) {
+      const b = document.createElement("button");
+      const own = window.TidalStore && TidalStore.ownsSkin(sk.id);
+      b.className = "btn" + (sk.id === sel ? "" : " ghost");
+      b.textContent = sk.id === sel ? `${sk.name} — Selected ✓`
+        : own ? `${sk.name} — Select`
+        : `${sk.name} — ${sk.price} coins`;
+      b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!window.TidalStore || sk.id === TidalStore.selectedSkin()) return;
+        if (TidalStore.ownsSkin(sk.id)) TidalStore.selectSkin(sk.id);
+        else if (!TidalStore.buySkin(sk.id, sk.price)) return;   // can't afford
+        sfx("coin"); buzz("light");
+        refreshSkins(); refreshCoinsUI();
+      });
+      list.appendChild(b);
+    }
   }
 
   function refreshShop() {
@@ -1674,8 +1730,9 @@
   // ?shot=N → posed screenshot scene. Wait for `load` so the WebGL engine
   // module (deferred) is ready, otherwise 3D orbitals fall back to canvas.
   if (SHOT && SHOTS[SHOT]) window.addEventListener("load", () => setupShot(SHOTS[SHOT]));
-  // ?screen=shop → open the Shop directly (for IAP review screenshots).
+  // ?screen=shop|skins → open that screen directly (for screenshots / testing).
   if (params.get("screen") === "shop") window.addEventListener("load", () => { refreshShop(); showScreen("shop"); });
+  if (params.get("screen") === "skins") window.addEventListener("load", () => { refreshSkins(); showScreen("skins"); });
 
   // ---- PWA registration ----------------------------------------------------
   if ("serviceWorker" in navigator) {

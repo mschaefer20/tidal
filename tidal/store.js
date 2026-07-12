@@ -9,6 +9,12 @@
 
   const COINS_KEY = "tidal-coins";
   const PREMIUM_KEY = "tidal-premium";
+  const SKINS_KEY = "tidal-skins-owned";     // comma-separated owned skin ids
+  const SKIN_SEL_KEY = "tidal-skin";         // selected skin id
+
+  // AdMob rewarded unit — Google's public TEST id. Replace with the real
+  // rewarded ad-unit id once the AdMob account/app/unit exist.
+  const AD_REWARDED_ID = "ca-app-pub-3940256099942544/1712485313";
 
   // ---- MUST MATCH App Store Connect + RevenueCat -------------------------
   const RC_API_KEY = "appl_VqkYGcKDGCJkcCEUOmCJPZydJYW";
@@ -18,6 +24,9 @@
 
   let coins = Math.max(0, Number(localStorage.getItem(COINS_KEY) || 0));
   let premium = localStorage.getItem(PREMIUM_KEY) === "1";
+  let owned = new Set((localStorage.getItem(SKINS_KEY) || "").split(",").filter(Boolean));
+  owned.add("default");               // the base skin is always owned
+  let skin = localStorage.getItem(SKIN_SEL_KEY) || "default";
   let lastError = "";                 // last store failure, for the shop status line
 
   function errMsg(e) {
@@ -27,6 +36,11 @@
   function save() {
     localStorage.setItem(COINS_KEY, String(coins));
     localStorage.setItem(PREMIUM_KEY, premium ? "1" : "0");
+    localStorage.setItem(SKINS_KEY, [...owned].join(","));
+    localStorage.setItem(SKIN_SEL_KEY, skin);
+  }
+  function admob() {
+    return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob;
   }
   function rc() {
     return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Purchases;
@@ -55,6 +69,17 @@
     spendCoins(n) { if (coins < n) return false; coins -= n; save(); return true; },
     hasPremium() { return premium; },
     coinMultiplier() { return premium ? 2 : 1; },
+
+    // ---- Cosmetic skins (coins buy them; selection is app-managed) --------
+    ownsSkin(id) { return owned.has(id); },
+    selectedSkin() { return skin; },
+    selectSkin(id) { if (!owned.has(id)) return false; skin = id; save(); return true; },
+    buySkin(id, price) {                 // buy + auto-equip; false if can't afford
+      if (owned.has(id)) { skin = id; save(); return true; }
+      if (coins < price) return false;
+      coins -= price; owned.add(id); skin = id; save();
+      return true;
+    },
 
     lastError() { return lastError; },
 
@@ -99,8 +124,24 @@
       return premium;
     },
 
-    // Rewarded ad continue — still stubbed until the AdMob phase.
-    watchAd() { return new Promise((res) => setTimeout(() => res(true), 500)); },
+    // Rewarded ad → resolves true only if the reward was granted. On the web
+    // (no plugin) it resolves true after a short delay so the flow is testable.
+    // NOTE: event names below must match the installed @capacitor-community/admob
+    // version; finalize when the plugin is added + the AdMob unit id is set.
+    async watchAd() {
+      const ad = admob();
+      if (!ad) return new Promise((res) => setTimeout(() => res(true), 400));
+      return new Promise(async (resolve) => {
+        let done = false, rewarded = false;
+        const finish = (v) => { if (!done) { done = true; resolve(v); } };
+        try {
+          await ad.addListener("onRewardedVideoAdReward", () => { rewarded = true; });
+          await ad.addListener("onRewardedVideoAdDismissed", () => finish(rewarded));
+          await ad.prepareRewardVideoAd({ adId: AD_REWARDED_ID });
+          await ad.showRewardVideoAd();
+        } catch (e) { lastError = errMsg(e); finish(false); }
+      });
+    },
   };
 
   // Configure RevenueCat on device once the plugin is available.

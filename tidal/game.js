@@ -31,8 +31,11 @@
   const WH_R = 17;                   // ring radius (entry hit test)
   const WH_TELEGRAPH = 0.4;          // s of warning-ring before a pair goes live
   const WH_LOCK = 0.5;               // s the pair is inert after a teleport (no re-entry loop)
-  const WH_EVERY_MIN = 3.5;          // s between pairs (min) — tune later
-  const WH_EVERY_MAX = 5.5;          // s between pairs (max)
+  const WH_EVERY_MIN = 1.6;          // s between pairs (min) — tune later
+  const WH_EVERY_MAX = 2.8;          // s between pairs (max)
+  const WH_MAX_PAIRS = 2;            // how many pairs can share the screen
+  const WH_GAP_MIN = 110;            // horizontal distance between a pair's two rings
+  const WH_GAP_MAX = 190;
   const BAR_SPACING = 230;           // vertical distance between barriers
 
   // ---- Orbital progression -------------------------------------------------
@@ -379,14 +382,14 @@
   function randRange(a, b) { return a + Math.random() * (b - a); }
   function orbitalHasWormholes() { return orbital === 6; }
 
-  // Spawn one linked portal pair above the screen: two rings on opposite sides,
-  // scrolling down together. Enter either → snap to the other's x (Orbital 6).
+  // Spawn one linked portal pair above the screen: two rings a moderate gap
+  // apart, placed at a random spot, scrolling down together. Enter either →
+  // snap to the other's x (Orbital 6).
   function spawnWormhole() {
-    const inset = WALL + 45;
-    const jitter = () => (Math.random() - 0.5) * 40;
-    const xa = inset + jitter();
-    const xb = W - inset + jitter();
-    wormholes.push({ y: -30, xa, xb, age: 0, lock: 0 });
+    const half = randRange(WH_GAP_MIN, WH_GAP_MAX) / 2;
+    const minC = WALL + 30 + half, maxC = W - WALL - 30 - half;
+    const cx = randRange(minC, maxC);
+    wormholes.push({ y: -30, xa: cx - half, xb: cx + half, age: 0, lock: 0 });
   }
 
   function spawnBar(y) {
@@ -613,9 +616,9 @@
     }
     wormholes = wormholes.filter((w) => w.y < H + 40);   // scroll off → disappear
 
-    // spawn cadence: at most one pair on screen at a time
+    // spawn cadence: up to WH_MAX_PAIRS pairs can share the screen
     nextWormhole -= dt;
-    if (nextWormhole <= 0 && wormholes.length === 0) {
+    if (nextWormhole <= 0 && wormholes.length < WH_MAX_PAIRS) {
       spawnWormhole();
       nextWormhole = randRange(WH_EVERY_MIN, WH_EVERY_MAX);
     }
@@ -635,6 +638,7 @@
       // reward the read: a couple coins drift down toward where you landed
       bonuses.push({ x: orb.x, y: ORB_Y - 34, taken: false });
       bonuses.push({ x: orb.x, y: ORB_Y - 66, taken: false });
+      break;                       // one jump per frame (avoid chaining pairs)
     }
   }
 

@@ -60,7 +60,9 @@ Keyboard (browser only): Space/Enter flip, Esc/P pause.
 ## Status
 - **v1.0 — LIVE** on the App Store, 148 countries (EU excluded pending DSA trader
   status), iPhone-only.
-- **v1.1 — in progress:**
+- **v1.1 — SUBMITTED, in App Review (2026-07-19).** Final build uploaded; build +
+  3 IAPs + `tidal_high_scores` leaderboard attached to the 1.1 version page and
+  submitted together. On approval the leaderboard and IAPs go live. What shipped:
   - ✅ **Continue UX** (v1.0.1 items): coin-continue confirm step; death screen has
     Continue / Start Over / Menu / Leaderboard (no more Give-Up→Play-Again).
   - ✅ **Game Center** code + CI done (`ENABLED=true`). Needs: GC enabled on the App
@@ -72,16 +74,20 @@ Keyboard (browser only): Space/Enter flip, Esc/P pause.
     `tidal_premium`, Paid Apps Agreement active. Shop shows owned state +
     surfaces store errors; store dispatches `tidal-premium-change` on async
     entitlement sync. IAPs must be attached to the 1.1 version page at submit.
-  - 🔲 **Rewarded ads (AdMob)** — NOT started. `watchAd()` in `store.js` is still a
-    stub; the Watch-Ad continue button was removed in the v1.0 cleanup (recover
-    from git). Needs AdMob account + `@capacitor-community/admob` + privacy labels.
+  - ➡️ **Rewarded ads (AdMob)** — deferred to v1.2. `watchAd()` in `store.js` is
+    still a stub; the Watch-Ad continue button exists but is hidden in the UI.
+    Needs AdMob account + `@capacitor-community/admob` + privacy labels.
 
-## Known issues / TODO (see `V1.1-CHECKLIST.md` for detail)
+## Known issues / TODO
 - ✅ Music-on-speaker FIXED (arp up an octave, mid harmonic carries the bass) —
   verify on the device speaker in the final build.
-- **Ship v1.1:** final Codemagic build → attach build + 3 IAPs + `tidal_high_scores`
-  leaderboard to the 1.1 version page + What's New → submit (all reviewed together).
-- After v1.1: AdMob rewarded ads (v1.2), EU trader status.
+- ✅ v1.1 shipped to App Review (2026-07-19). When it's approved: verify the
+  leaderboard + IAPs went live on device.
+- **v1.2 (see `V1.2-ORBITALS.md`):** Orbitals VI–X "exotic spacetime" wave —
+  VI (2D wormholes) built + tuning, VII (3D wormhole tunnel) prototype built,
+  VIII/IX/X design-only. Plus: finish cosmetic orb skins (code committed, UI
+  hidden), AdMob rewarded-ad continue (`watchAd()` stub; button hidden),
+  EU trader status (DSA) to re-enable EU countries.
 
 ## The stubs (so the game stays playable on web)
 `window.TidalStore` (IAP/coins) and `window.TidalGC` (Game Center) both no-op or

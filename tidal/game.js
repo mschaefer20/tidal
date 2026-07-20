@@ -36,6 +36,28 @@
   const WH_MAX_PAIRS = 2;            // how many pairs can share the screen
   const WH_GAP_MIN = 96;             // horizontal distance between a pair's two rings
   const WH_GAP_MAX = 168;
+
+  // ---- Orbital 8 chaos portals: pairs drift as a unit and occasionally hop --
+  const WH_CHAOS_DRIFT_AMP = 48;     // px of sinusoidal pair drift
+  const WH_CHAOS_DRIFT_FREQ = 0.35;  // drift cycles per second
+  const WH_CHAOS_HOP_MIN = 2.5;      // s between pair relocations
+  const WH_CHAOS_HOP_MAX = 4.0;
+
+  // ---- Orbital 8 "Cosmic Strings": rotating laser lines that pulse deadly ---
+  // A screen-fixed pivot above the orb row spins a full line clock-hand style.
+  // The line is only deadly where it crosses the orb's row, and only while
+  // firing; idle it stays faint, charge flickers bright with a row marker.
+  const STR_OMEGA_MIN = 0.45;        // rad/s rotation (random per string + sign)
+  const STR_OMEGA_MAX = 0.70;
+  const STR_PIVOT_DY_MIN = 230;      // pivot height above the orb row
+  const STR_PIVOT_DY_MAX = 300;
+  const STR_CHARGE = 0.7;            // s of bright flicker before the beam goes hot
+  const STR_FIRE = 0.9;              // s the beam is deadly
+  const STR_FIRE_EVERY_MIN = 2.2;    // s between fire windows (per string)
+  const STR_FIRE_EVERY_MAX = 3.6;
+  const STR_KILL_W = 22;             // half-width of the deadly band at the orb row
+  const STR_COS_MIN = 0.25;          // don't arm near-horizontal (crossing off-field)
+
   const BAR_SPACING = 230;           // vertical distance between barriers
 
   // ---- Orbital progression -------------------------------------------------
@@ -195,6 +217,7 @@
   let orb, gravSide, bars, bonuses, scroll, score, running, lastT, rafId, shake, paused;
   let mode, depthSpeed, flash, intro, travel, orbital, countdown, invuln, orbitalStartScore, diffFloor;
   let wormholes, nextWormhole;  // Orbital 6: active portal pairs + spawn timer
+  let strings;                  // Orbital 8: rotating cosmic-string lasers
   let continues, adUsed;        // continue ladder: count this run + whether the ad was used
   let frozen = false;           // shot mode: freeze the scene to capture a screenshot
   const COUNTDOWN_TIME = 3.0;   // wait + 3-2-1 before each new orbital (2-5)
@@ -265,6 +288,7 @@
     orbitalStartScore = 0;
     diffFloor = 0;
     wormholes = []; nextWormhole = randRange(WH_EVERY_MIN, WH_EVERY_MAX);
+    strings = [];
     continues = 0;
     adUsed = false;
     g3Time = 0;
@@ -311,6 +335,7 @@
     // (y-scroll vs depth vs polar) differs between orbitals.
     wormholes = [];
     nextWormhole = nextWormholeDelay();
+    strings = [];
     if (mode === "3d") {
       depthSpeed = DEPTH_SPEED_START;
       intro = 0;
@@ -425,13 +450,17 @@
   // (equidistant between walls) and stays there — bars scroll at the same rate.
   function spawnWormhole() {
     const half = randRange(WH_GAP_MIN, WH_GAP_MAX) / 2;
-    const minC = WALL + 30 + half, maxC = W - WALL - 30 - half;
-    const cx = randRange(minC, maxC);
+    // Chaos pairs drift ±WH_CHAOS_DRIFT_AMP, so keep their base further from
+    // the walls — an exit must never drop the orb inside a wall.
+    const inset = WALL + 30 + half + (ORB().whChaos ? WH_CHAOS_DRIFT_AMP : 0);
+    const cx = randRange(inset, W - inset);
     const ref = bars.length ? bars[0].y : -40;    // any bar → the grid phase
     let wy = ref - BAR_SPACING / 2;                // half a spacing = between rows
     while (wy > -20) wy -= BAR_SPACING;            // put it just above the screen top
     while (wy <= -20 - BAR_SPACING) wy += BAR_SPACING;
-    wormholes.push({ y: wy, xa: cx - half, xb: cx + half, age: 0, lock: 0 });
+    wormholes.push({ y: wy, xa: cx - half, xb: cx + half, age: 0, lock: 0,
+      baseC: cx, half, phase: Math.random() * TAU,
+      hop: randRange(WH_CHAOS_HOP_MIN, WH_CHAOS_HOP_MAX) });
   }
 
   function spawnBar(y) {
@@ -647,6 +676,53 @@
     }
 
     if (orbitalHasWormholes()) updateWormholes(dt, dy);
+    if (ORB().strings) updateStrings(dt);
+  }
+
+  // ---- Orbital 8 "Cosmic Strings" ------------------------------------------
+  // Where the string's beam crosses the orb's row (off-field when near-horizontal).
+  function stringXHit(s) {
+    const c = Math.cos(s.ang);
+    if (Math.abs(c) < 0.03) return -9999;
+    return s.px + (ORB_Y - s.py) * Math.tan(s.ang);
+  }
+  // A second string joins once the orbital's speed ramp passes the halfway mark.
+  function stringCount() { return difficulty() > 0.5 ? 2 : 1; }
+
+  function updateStrings(dt) {
+    while (strings.length < stringCount()) {
+      strings.push({
+        px: randRange(W * 0.30, W * 0.70),
+        py: ORB_Y - randRange(STR_PIVOT_DY_MIN, STR_PIVOT_DY_MAX),
+        ang: Math.random() * Math.PI,
+        omega: randRange(STR_OMEGA_MIN, STR_OMEGA_MAX) * (Math.random() < 0.5 ? -1 : 1),
+        phase: "idle",
+        t: randRange(1.5, 2.5),          // beam stays readable well before it first fires
+      });
+    }
+    for (const s of strings) {
+      s.ang += s.omega * dt;
+      s.t -= dt;
+      if (s.phase === "idle") {
+        if (s.t > 0) continue;
+        // Only arm when the beam's row-crossing is on-field and not sweeping so
+        // fast it would blanket the row (near-horizontal) — no cheap kills.
+        const xh = stringXHit(s);
+        if (Math.abs(Math.cos(s.ang)) > STR_COS_MIN && xh > WALL && xh < W - WALL) {
+          s.phase = "charge"; s.t = STR_CHARGE;
+        } else {
+          s.t = 0.3;                     // bad geometry right now — retry shortly
+        }
+      } else if (s.phase === "charge") {
+        if (s.t > 0) continue;
+        s.phase = "fire"; s.t = STR_FIRE;
+        sfx("laser"); buzz("light");
+      } else if (s.phase === "fire") {
+        const xh = stringXHit(s);
+        if (!shotMode && xh > 0 && xh < W && Math.abs(orb.x - xh) < STR_KILL_W) { die(); return; }
+        if (s.t <= 0) { s.phase = "idle"; s.t = randRange(STR_FIRE_EVERY_MIN, STR_FIRE_EVERY_MAX); }
+      }
+    }
   }
 
   // Orbital 7: same escape-hatch portals in the 3D tunnel — depth (d) instead
@@ -711,11 +787,26 @@
   }
 
   // Orbital 6: scroll portal pairs, spawn on a timer, teleport on entry.
+  // Orbital 8 (whChaos): pairs also drift sinusoidally as a unit and
+  // occasionally blink out and reappear at a new x (always re-telegraphed).
   function updateWormholes(dt, dy) {
     for (const w of wormholes) {
       w.y += dy;
       w.age += dt;
       if (w.lock > 0) w.lock = Math.max(0, w.lock - dt);
+      if (ORB().whChaos) {
+        w.hop -= dt;
+        if (w.hop <= 0) {
+          const inset = WALL + 30 + w.half + WH_CHAOS_DRIFT_AMP;
+          w.baseC = randRange(inset, W - inset);
+          w.age = 0;                        // re-run the telegraph at the new spot
+          w.lock = Math.max(w.lock, 0.25);  // inert through the blink
+          w.hop = randRange(WH_CHAOS_HOP_MIN, WH_CHAOS_HOP_MAX);
+        }
+        const off = WH_CHAOS_DRIFT_AMP * Math.sin(w.age * WH_CHAOS_DRIFT_FREQ * TAU + w.phase);
+        w.xa = w.baseC - w.half + off;
+        w.xb = w.baseC + w.half + off;
+      }
     }
     wormholes = wormholes.filter((w) => w.y < H + 40);   // scroll off → disappear
 
@@ -995,6 +1086,8 @@
     for (const b of bars) {
       drawBar(b);
     }
+
+    if (ORB().strings) for (const s of strings) drawString(s);
 
     // bonus orbs
     for (const o of bonuses) {
@@ -1340,6 +1433,40 @@
       ctx.beginPath(); ctx.arc(cx, w.y, WH_R * 0.55, a0, a0 + Math.PI * 1.2); ctx.stroke();
       ctx.restore();
     }
+  }
+
+  // Orbital 8: one cosmic string — the full rotating line, its pivot node, and
+  // a marker where it crosses the orb's row (the only place it can kill).
+  function drawString(s) {
+    const c = Math.cos(s.ang), sn = Math.sin(s.ang);
+    const COL = "#ff5e7e";
+    let alpha, width;
+    if (s.phase === "fire") { alpha = 0.9; width = 3.5; }
+    else if (s.phase === "charge") { alpha = 0.3 + 0.4 * (0.5 + 0.5 * Math.sin(s.t * 40)); width = 2; }
+    else { alpha = 0.15; width = 1.5; }
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = COL;
+    ctx.lineWidth = width;
+    if (s.phase !== "idle") { ctx.shadowBlur = 14; ctx.shadowColor = COL; }
+    ctx.beginPath();
+    ctx.moveTo(s.px - sn * 1500, s.py - c * 1500);
+    ctx.lineTo(s.px + sn * 1500, s.py + c * 1500);
+    ctx.stroke();
+    // pivot node (the spacetime defect the line spins around)
+    ctx.shadowBlur = 10; ctx.shadowColor = "#ffffff";
+    ctx.globalAlpha = Math.min(1, alpha + 0.25);
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath(); ctx.arc(s.px, s.py, 4, 0, TAU); ctx.fill();
+    // row-crossing marker: exactly where the beam can hit you
+    const xh = stringXHit(s);
+    if (s.phase !== "idle" && xh > 0 && xh < W) {
+      ctx.globalAlpha = s.phase === "fire" ? 0.95 : 0.6;
+      ctx.shadowBlur = 14; ctx.shadowColor = COL;
+      ctx.fillStyle = s.phase === "fire" ? "#ffffff" : COL;
+      ctx.beginPath(); ctx.arc(xh, ORB_Y, s.phase === "fire" ? 7 : 5, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
   }
 
   function glowCircle(x, y, r, color, strong) {

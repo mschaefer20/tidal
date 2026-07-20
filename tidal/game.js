@@ -85,7 +85,7 @@
     { n: 7,  dim: "3d", wh: true, whEvery: [2.0, 3.4] },           // wormhole tunnel (sparser pairs at tunnel speed)
     { n: 8,  dim: "2d", wh: true, whChaos: true, strings: true },  // cosmic strings
     { n: 9,  dim: "3d", wh: true, whY: true, drift: true, wells: true, taper: true, whEvery: [1.4, 2.4] }, // wormhole tunnel, harder (densest portals)
-    { n: 10, dim: "2d", arena: true, novas: true, whArena: true }, // supernova finale
+    { n: 10, dim: "2d", arena: true, novas: true, whArena: true, whEvery: [4.0, 6.0] }, // supernova finale
   ];
   // The active orbital's entry (or orbital n's, when given).
   function ORB(n) { return ORBITALS[(n || orbital) - 1] || ORBITALS[0]; }
@@ -143,6 +143,27 @@
   const SURGE_ACTIVE = 1.4;          // surge duration
   const SURGE_MULT = 1.9;            // gravity multiplier during a surge
   const TAU = Math.PI * 2;
+
+  // ---- Orbital 10 "Supernova": expanding shockwave rings with one gap ------
+  // The star periodically detonates: a ring expands from the core to the rim
+  // and only a telegraphed angular gap is safe. Theta sweeps at a fixed rate,
+  // so the player steers TIMING with radius — flip outward to meet the ring
+  // later (and at a different angle), inward to meet it sooner.
+  const NOVA_FIRST = 4.0;            // s after the intro before the first nova
+  const NOVA_EVERY = 8.0;            // s between novas (shrinks with arenaTime)
+  const NOVA_EVERY_MIN = 5.0;
+  const NOVA_CHARGE = 1.2;           // telegraph: star swells + gap wedge shown
+  const NOVA_RING_SPEED = 130;       // px/s ring expansion (core→rim ≈ 1.3s)
+  const NOVA_RING_TH = 9;            // ring half-thickness for collision
+  const NOVA_GAP_HALF0 = 0.55;       // rad half-width of the safe gap at ramp 0
+  const NOVA_GAP_TIGHTEN = 0.17;     // gap shrinks to ~0.38 rad by full ramp
+
+  // Orbital 10 arena portals — reposition across the arena (escape a ring
+  // whose gap you can't make). Polar pair; one at a time, limited lifetime.
+  const WH_ARENA_LIFE = 7.0;         // s a pair stays open (fades the last second)
+  const WH_ARENA_RMIN = 70;          // radial band the portals occupy
+  const WH_ARENA_RMAX = 165;
+  const WH_ARENA_SEP = 1.6;          // min angular separation between the ends
 
   // ---- Orbital 3 "Binary" tunables (2D multi-gravity) ----------------------
   // Two planets offset diagonally so the pull is 2D: left tugs up-left,
@@ -226,6 +247,7 @@
   function continueCost() { return CONTINUE_COST * Math.pow(2, continues); }
   let g3Time, gpL, gpR;   // Orbital 3: oscillation clock + live planet positions
   let arenaTime, scoreClock, debris, coins, surge, nextSurge, nextDebris, escaped;   // Orbital 5 arena
+  let nova, nextNova;           // Orbital 10: active shockwave + schedule
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
 
   const BEST_KEY = "tidal-best";
@@ -861,6 +883,7 @@
   }
   function buildArena() {
     arenaTime = 0; scoreClock = 0; surge = null; nextSurge = SURGE_EVERY;
+    nova = null; nextNova = NOVA_FIRST;
     nextDebris = DEBRIS_FIRST;    // starts empty; debris arrives gradually
     escaped = false;
     orb.theta = -Math.PI / 2;     // start at the top of the ring
@@ -901,17 +924,20 @@
 
     arenaTime += dt;
 
-    // boss attack: scheduled gravity surges (telegraphed, then strong inward pull)
-    nextSurge -= dt;
-    if (!surge && nextSurge <= 0) surge = { phase: "charge", t: SURGE_CHARGE };
+    // boss attack: scheduled gravity surges (telegraphed, then strong inward
+    // pull). Orbital 10 swaps this attack out for the supernova rings.
     let gMult = 1;
-    if (surge) {
-      surge.t -= dt;
-      if (surge.phase === "charge") {
-        if (surge.t <= 0) { surge.phase = "active"; surge.t = SURGE_ACTIVE; }
-      } else {
-        gMult = SURGE_MULT;
-        if (surge.t <= 0) { surge = null; nextSurge = Math.max(3.5, SURGE_EVERY - arenaTime * 0.04); }
+    if (ORB().surges) {
+      nextSurge -= dt;
+      if (!surge && nextSurge <= 0) surge = { phase: "charge", t: SURGE_CHARGE };
+      if (surge) {
+        surge.t -= dt;
+        if (surge.phase === "charge") {
+          if (surge.t <= 0) { surge.phase = "active"; surge.t = SURGE_ACTIVE; }
+        } else {
+          gMult = SURGE_MULT;
+          if (surge.t <= 0) { surge = null; nextSurge = Math.max(3.5, SURGE_EVERY - arenaTime * 0.04); }
+        }
       }
     }
 
@@ -934,11 +960,19 @@
     // flung past the rim → fly off into space (handled on the next frames)
     if (orb.rho >= ARENA.rArena) { escaped = true; return; }
 
-    // debris falls inward from the rim — spawns gradually, faster over time
+    // supernova shockwaves + repositioning portals (orbital 10's attacks)
+    if (ORB().novas) {
+      if (updateNova(dt)) return die();
+      if (orbital !== fromOrbital) return;   // ring-clear score could shift orbitals
+    }
+    if (ORB().whArena) updateWormholesArena(dt);
+
+    // debris falls inward from the rim — spawns gradually, faster over time.
+    // Thinner while novas run, so the expanding rings stay readable.
     nextDebris -= dt;
     if (nextDebris <= 0) {
       spawnDebris();
-      nextDebris = Math.max(0.38, 1.5 - arenaTime * 0.05);
+      nextDebris = Math.max(0.38, 1.5 - arenaTime * 0.05) * (ORB().novas ? 1.4 : 1);
     }
     for (let i = debris.length - 1; i >= 0; i--) {
       const d = debris[i];
@@ -977,6 +1011,91 @@
       scoreClock -= 0.5;
       addScore(1);
       if (orbital !== fromOrbital) return;
+    }
+  }
+
+  // ---- Orbital 10: supernova shockwaves ------------------------------------
+  // Advance the nova state machine. Returns true if the ring caught the orb.
+  function updateNova(dt) {
+    nextNova -= dt;
+    if (!nova && nextNova <= 0) {
+      nova = {
+        phase: "charge", t: NOVA_CHARGE,
+        gapAng: Math.random() * TAU,
+        gapHalf: NOVA_GAP_HALF0 - NOVA_GAP_TIGHTEN * difficulty(),
+      };
+    }
+    if (!nova) return false;
+    nova.t -= dt;
+    if (nova.phase === "charge") {
+      if (nova.t <= 0) {
+        nova.phase = "ring"; nova.r = ARENA.rEvent; nova.cleared = false;
+        sfx("laser"); buzz("medium");
+      }
+      return false;
+    }
+    nova.r += NOVA_RING_SPEED * dt;
+    if (Math.abs(nova.r - orb.rho) < ORB_R + NOVA_RING_TH) {
+      // wrap-safe angular distance to the gap center; the gap is shrunk by the
+      // orb's own angular radius so grazing its edge kills honestly
+      const da = ((orb.theta - nova.gapAng + Math.PI) % TAU + TAU) % TAU - Math.PI;
+      const margin = Math.asin(Math.min(1, ORB_R / Math.max(orb.rho, ARENA.rEvent)));
+      if (Math.abs(da) > nova.gapHalf - margin) return true;   // caught by the wave
+    }
+    if (!nova.cleared && nova.r > orb.rho + ORB_R + NOVA_RING_TH) {
+      nova.cleared = true;
+      addScore(3);                       // threaded the gap
+      if (!nova) return false;           // (score advanced the orbital → state rebuilt)
+    }
+    if (nova.r > ARENA.rArena + 30) {
+      nova = null;
+      nextNova = Math.max(NOVA_EVERY_MIN, NOVA_EVERY - arenaTime * 0.06);
+    }
+    return false;
+  }
+
+  // ---- Orbital 10: polar repositioning portals ------------------------------
+  function spawnWormholeArena() {
+    const a1 = Math.random() * TAU;
+    const a2 = a1 + WH_ARENA_SEP + Math.random() * (TAU - 2 * WH_ARENA_SEP);
+    wormholes.push({
+      a1, r1: randRange(WH_ARENA_RMIN, WH_ARENA_RMAX),
+      a2, r2: randRange(WH_ARENA_RMIN, WH_ARENA_RMAX),
+      age: 0, lock: 0, life: WH_ARENA_LIFE,
+    });
+  }
+
+  function updateWormholesArena(dt) {
+    for (const w of wormholes) {
+      w.age += dt;
+      w.life -= dt;
+      if (w.lock > 0) w.lock = Math.max(0, w.lock - dt);
+    }
+    wormholes = wormholes.filter((w) => w.life > 0);
+
+    nextWormhole -= dt;
+    if (nextWormhole <= 0 && wormholes.length < 1) {   // one pair at a time
+      spawnWormholeArena();
+      nextWormhole = nextWormholeDelay();
+    }
+
+    for (const w of wormholes) {
+      if (w.age < WH_TELEGRAPH || w.lock > 0 || w.life < 1) continue;
+      for (const [aIn, rIn, aOut, rOut] of [[w.a1, w.r1, w.a2, w.r2], [w.a2, w.r2, w.a1, w.r1]]) {
+        const ex = ARENA.x + Math.cos(aIn) * rIn, ey = ARENA.y + Math.sin(aIn) * rIn;
+        const dx = ex - orb.x, dy = ey - orb.y;
+        if (dx * dx + dy * dy > (WH_R + 4) * (WH_R + 4)) continue;
+        // teleport: land at the twin with no radial momentum
+        orb.theta = aOut;
+        orb.rho = rOut;
+        orb.vrho = 0;
+        orb.x = ARENA.x + Math.cos(orb.theta) * orb.rho;
+        orb.y = ARENA.y + Math.sin(orb.theta) * orb.rho;
+        w.lock = WH_LOCK;
+        flash = Math.max(flash, 0.4);
+        sfx("warp"); buzz("medium");
+        return;
+      }
     }
   }
 
@@ -1222,6 +1341,9 @@
     ctx.fillStyle = "#000";
     ctx.beginPath(); ctx.arc(cx, cy, ARENA.rEvent, 0, TAU); ctx.fill();
 
+    // supernova: swelling star + gap telegraph, then the expanding shockwave
+    if (ORB().novas && nova) drawNova(cx, cy);
+
     // debris — warning pulse at the rim, then the falling rock
     for (const d of debris) {
       const ex = cx + Math.cos(d.ang) * d.r, ey = cy + Math.sin(d.ang) * d.r;
@@ -1241,6 +1363,9 @@
       if (c.taken) continue;
       glowCircle(cx + Math.cos(c.ang) * c.r, cy + Math.sin(c.ang) * c.r, 7, "#ffd84d");
     }
+
+    // repositioning portals
+    if (ORB().whArena) for (const w of wormholes) drawWormholeArena(w);
 
     // pull / repel indicator (toward or away from the hole)
     const color = orbColor();
@@ -1274,6 +1399,79 @@
     if (active) {
       ctx.fillStyle = "rgba(255,60,30,0.12)";
       ctx.fillRect(-12, -12, W + 24, H + 24);
+    }
+  }
+
+  // Orbital 10: the nova — gold-white swell + dashed safe-wedge telegraph
+  // while charging (distinct from the surge's red), then the shockwave arc
+  // stroked over the DEADLY span so the gap reads as the dark notch.
+  function drawNova(cx, cy) {
+    if (nova.phase === "charge") {
+      const p = 0.5 + 0.5 * Math.sin(nova.t * 30);
+      const r = ARENA.rEvent * (1.6 + p * 0.8);
+      const g = ctx.createRadialGradient(cx, cy, ARENA.rEvent * 0.4, cx, cy, r * 1.6);
+      g.addColorStop(0, "rgba(255,243,192,0.95)");
+      g.addColorStop(1, "rgba(255,200,80,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(cx, cy, r * 1.6, 0, TAU); ctx.fill();
+      ctx.save();
+      ctx.globalAlpha = 0.25 + p * 0.35;
+      ctx.strokeStyle = "#9dffb0";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+      for (const a of [nova.gapAng - nova.gapHalf, nova.gapAng + nova.gapHalf]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a) * ARENA.rEvent, cy + Math.sin(a) * ARENA.rEvent);
+        ctx.lineTo(cx + Math.cos(a) * ARENA.rArena, cy + Math.sin(a) * ARENA.rArena);
+        ctx.stroke();
+      }
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,214,140,0.95)";
+      ctx.lineWidth = NOVA_RING_TH * 2;
+      ctx.shadowBlur = 18; ctx.shadowColor = "#ffb347";
+      ctx.beginPath();
+      ctx.arc(cx, cy, nova.r, nova.gapAng + nova.gapHalf, nova.gapAng - nova.gapHalf + TAU);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // Orbital 10: a polar portal pair — same visual language as the 2D rings.
+  function drawWormholeArena(w) {
+    const COL = "#b884ff";
+    const pts = [[w.a1, w.r1], [w.a2, w.r2]].map(([a, r]) =>
+      [ARENA.x + Math.cos(a) * r, ARENA.y + Math.sin(a) * r]);
+    const active = w.age >= WH_TELEGRAPH;
+    const fade = Math.min(1, w.life);        // fade out over the last second
+    ctx.save();
+    ctx.globalAlpha = (active ? 0.28 : 0.12) * fade;
+    ctx.strokeStyle = COL; ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 7]);
+    ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); ctx.lineTo(pts[1][0], pts[1][1]); ctx.stroke();
+    ctx.restore();
+
+    for (const [px, py] of pts) {
+      if (!active) {
+        const t = Math.min(1, w.age / WH_TELEGRAPH);
+        ctx.save();
+        ctx.globalAlpha = (0.15 + 0.35 * t) * fade;
+        ctx.strokeStyle = COL; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(px, py, WH_R * t, 0, TAU); ctx.stroke();
+        ctx.restore();
+        continue;
+      }
+      const dim = (w.lock > 0 ? 0.4 : 1) * fade;
+      ctx.save();
+      ctx.globalAlpha = dim;
+      ctx.strokeStyle = COL; ctx.lineWidth = 3;
+      ctx.shadowBlur = 16; ctx.shadowColor = COL;
+      ctx.beginPath(); ctx.arc(px, py, WH_R, 0, TAU); ctx.stroke();
+      const a0 = w.age * 4;
+      ctx.globalAlpha = dim * 0.9; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(px, py, WH_R * 0.55, a0, a0 + Math.PI * 1.2); ctx.stroke();
+      ctx.restore();
     }
   }
 

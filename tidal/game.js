@@ -60,7 +60,7 @@
     { n: 4,  dim: "3d", drift: true, wells: true, taper: true },   // 3D binary tunnel
     { n: 5,  dim: "2d", arena: true, surges: true },               // black-hole survival arena
     { n: 6,  dim: "2d", wh: true },                                // wormholes (wave two intro)
-    { n: 7,  dim: "3d", wh: true },                                // wormhole tunnel
+    { n: 7,  dim: "3d", wh: true, whEvery: [2.0, 3.4] },           // wormhole tunnel (sparser pairs at tunnel speed)
     { n: 8,  dim: "2d", wh: true, whChaos: true, strings: true },  // cosmic strings
     { n: 9,  dim: "3d", wh: true, whY: true, drift: true, wells: true, taper: true }, // wormhole tunnel, harder
     { n: 10, dim: "2d", arena: true, novas: true, whArena: true }, // supernova finale
@@ -310,7 +310,7 @@
     // Wormholes never survive an orbital change — their coordinate space
     // (y-scroll vs depth vs polar) differs between orbitals.
     wormholes = [];
-    nextWormhole = randRange(WH_EVERY_MIN, WH_EVERY_MAX);
+    nextWormhole = nextWormholeDelay();
     if (mode === "3d") {
       depthSpeed = DEPTH_SPEED_START;
       intro = 0;
@@ -413,6 +413,11 @@
 
   function randRange(a, b) { return a + Math.random() * (b - a); }
   function orbitalHasWormholes() { return !!ORB().wh; }
+  // Seconds until the next portal pair — per-orbital override via whEvery.
+  function nextWormholeDelay() {
+    const [mn, mx] = ORB().whEvery || [WH_EVERY_MIN, WH_EVERY_MAX];
+    return randRange(mn, mx);
+  }
 
   // Spawn one linked portal pair above the screen: two rings a moderate gap
   // apart, placed at a random x, scrolling down together. Enter either → snap
@@ -650,7 +655,17 @@
   function spawnWormhole3D() {
     const half = randRange(WH_GAP_MIN, WH_GAP_MAX) / 2;
     const minC = WALL + 30 + half, maxC = W - WALL - 30 - half;
-    const cx = randRange(minC, maxC);
+    // Usually bias the pair toward the far side of the most imminent gap, so
+    // portals tend to offer a jump you actually want (never always — a solved
+    // pattern would trivialize the read).
+    let cx;
+    const near = bars.reduce((a, b) => (b.d > 0 && (!a || b.d < a.d) ? b : a), null);
+    if (near && Math.random() < 0.6) {
+      const mid = (minC + maxC) / 2;
+      cx = near.gapX + near.gapW / 2 < W / 2 ? randRange(mid, maxC) : randRange(minC, mid);
+    } else {
+      cx = randRange(minC, maxC);
+    }
     const ref = bars.length ? bars[0].d : 0;      // barrier depth grid
     let wd = ref + DEPTH_SPACING / 2;             // half a spacing = between rings
     while (wd < D_SPAWN - DEPTH_SPACING) wd += DEPTH_SPACING;
@@ -669,7 +684,7 @@
     nextWormhole -= dt;
     if (nextWormhole <= 0 && wormholes.length < WH_MAX_PAIRS) {
       spawnWormhole3D();
-      nextWormhole = randRange(WH_EVERY_MIN, WH_EVERY_MAX);
+      nextWormhole = nextWormholeDelay();
     }
 
     for (const w of wormholes) {
@@ -682,7 +697,7 @@
       orb.vx = 0;
       w.lock = WH_LOCK;
       flash = Math.max(flash, 0.4);
-      sfx("start"); buzz("medium");
+      sfx("warp"); buzz("medium");
       bonuses.push({ x: orb.x, d: 1.4, taken: false });   // reward coins arrive next
       bonuses.push({ x: orb.x, d: 2.2, taken: false });
       break;
@@ -702,7 +717,7 @@
     nextWormhole -= dt;
     if (nextWormhole <= 0 && wormholes.length < WH_MAX_PAIRS) {
       spawnWormhole();
-      nextWormhole = randRange(WH_EVERY_MIN, WH_EVERY_MAX);
+      nextWormhole = nextWormholeDelay();
     }
 
     // teleport: when an active ring reaches the orb's row and lines up in x
@@ -716,7 +731,7 @@
       orb.vx = 0;
       w.lock = WH_LOCK;            // both rings inert briefly so we don't loop
       flash = Math.max(flash, 0.4);
-      sfx("start"); buzz("medium");
+      sfx("warp"); buzz("medium");
       // reward the read: a couple coins drift down toward where you landed
       bonuses.push({ x: orb.x, y: ORB_Y - 34, taken: false });
       bonuses.push({ x: orb.x, y: ORB_Y - 66, taken: false });

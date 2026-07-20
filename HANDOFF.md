@@ -83,11 +83,27 @@ Keyboard (browser only): Space/Enter flip, Esc/P pause.
   verify on the device speaker in the final build.
 - ✅ v1.1 shipped to App Review (2026-07-19). When it's approved: verify the
   leaderboard + IAPs went live on device.
-- **v1.2 (see `V1.2-ORBITALS.md`):** Orbitals VI–X "exotic spacetime" wave —
-  VI (2D wormholes) built + tuning, VII (3D wormhole tunnel) prototype built,
-  VIII/IX/X design-only. Plus: finish cosmetic orb skins (code committed, UI
-  hidden), AdMob rewarded-ad continue (`watchAd()` stub; button hidden),
-  EU trader status (DSA) to re-enable EU countries.
+- ✅ **v1.2 orbitals VIII–X BUILT (2026-07-20):** the full 10-orbital ladder now
+  exists. Orbital checks are **capability flags** on the `ORBITALS` table
+  (`arena`, `drift`, `wells`, `wh`, `whY`, `whChaos`, `whArena`, `strings`,
+  `novas`, `whEvery` cadence override) read via `ORB()` — extend orbitals by
+  composing flags, not by adding `=== N` literals. VIII = cosmic strings
+  (rotating pulsing lasers + chaos portals), IX = wormhole tunnel with
+  vertical-drift rings, X = supernova finale (shockwave rings with one gap +
+  polar portals on the O5 arena). TRACKS 8–10 + `warp`/`laser` sfx in fx.js.
+  Browser-smoke-tested (all 10 boot + play, zero console errors).
+  **Next: real playtesting/tuning** — all `STR_*`/`NOVA_*`/`WH_*` tunables are
+  constants at the top of game.js.
+- ✅ **Skins feature REMOVED (2026-07-20)** — code, UI, and store API deleted;
+  orphaned localStorage keys cleaned on boot.
+- ✅ **Death screen (2026-07-20):** runs begun via "Start From" offer
+  "Restart at ORBITAL N" + "Start from Orbital I"; orbital-1 runs keep the
+  single "Start Over".
+- **Parked:** AdMob rewarded-ad continue (`watchAd()` stub; button hidden in
+  index.html), EU trader status (DSA) to re-enable EU countries.
+- Before shipping v1.2: bump `sw.js` CACHE (at tidal-v64 now — bump again if
+  files change after 2026-07-20), device build via Codemagic, App Store
+  screenshots for the new orbitals (`?shot` still maxes at 5).
 
 ## The stubs (so the game stays playable on web)
 `window.TidalStore` (IAP/coins) and `window.TidalGC` (Game Center) both no-op or

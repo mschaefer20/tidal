@@ -9,8 +9,10 @@
 
   const COINS_KEY = "tidal-coins";
   const PREMIUM_KEY = "tidal-premium";
-  const SKINS_KEY = "tidal-skins-owned";     // comma-separated owned skin ids
-  const SKIN_SEL_KEY = "tidal-skin";         // selected skin id
+
+  // v1.2: skins feature removed — clear its orphaned persistence.
+  localStorage.removeItem("tidal-skins-owned");
+  localStorage.removeItem("tidal-skin");
 
   // AdMob rewarded unit — Google's public TEST id. Replace with the real
   // rewarded ad-unit id once the AdMob account/app/unit exist.
@@ -24,9 +26,6 @@
 
   let coins = Math.max(0, Number(localStorage.getItem(COINS_KEY) || 0));
   let premium = localStorage.getItem(PREMIUM_KEY) === "1";
-  let owned = new Set((localStorage.getItem(SKINS_KEY) || "").split(",").filter(Boolean));
-  owned.add("default");               // the base skin is always owned
-  let skin = localStorage.getItem(SKIN_SEL_KEY) || "default";
   let lastError = "";                 // last store failure, for the shop status line
 
   function errMsg(e) {
@@ -36,8 +35,6 @@
   function save() {
     localStorage.setItem(COINS_KEY, String(coins));
     localStorage.setItem(PREMIUM_KEY, premium ? "1" : "0");
-    localStorage.setItem(SKINS_KEY, [...owned].join(","));
-    localStorage.setItem(SKIN_SEL_KEY, skin);
   }
   function admob() {
     return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob;
@@ -69,17 +66,6 @@
     spendCoins(n) { if (coins < n) return false; coins -= n; save(); return true; },
     hasPremium() { return premium; },
     coinMultiplier() { return premium ? 2 : 1; },
-
-    // ---- Cosmetic skins (coins buy them; selection is app-managed) --------
-    ownsSkin(id) { return owned.has(id); },
-    selectedSkin() { return skin; },
-    selectSkin(id) { if (!owned.has(id)) return false; skin = id; save(); return true; },
-    buySkin(id, price) {                 // buy + auto-equip; false if can't afford
-      if (owned.has(id)) { skin = id; save(); return true; }
-      if (coins < price) return false;
-      coins -= price; owned.add(id); skin = id; save();
-      return true;
-    },
 
     lastError() { return lastError; },
 

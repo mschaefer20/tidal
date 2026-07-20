@@ -71,20 +71,9 @@
   }
   const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V", "ORBITAL VI", "ORBITAL VII"];
 
-  // Cosmetic orb skins — each recolors the orb's two gravity states (left/right).
-  // Kept deliberately small; prices are in coins (a sink for the coin economy).
-  const SKINS = [
-    { id: "default", name: "Classic", price: 0,   left: "#ff5e7e", right: "#4dd2ff" },
-    { id: "ember",   name: "Ember",   price: 300, left: "#ff6a3c", right: "#ffd24d" },
-    { id: "aurora",  name: "Aurora",  price: 500, left: "#54e0a8", right: "#8f7bff" },
-    { id: "magma",   name: "Magma",   price: 600, left: "#ff3b6b", right: "#ff9d2f" },
-    { id: "frost",   name: "Frost",   price: 800, left: "#dbe7ff", right: "#7fd0ff" },
-  ];
-  function currentSkin() {
-    const id = window.TidalStore ? TidalStore.selectedSkin() : "default";
-    return SKINS.find((s) => s.id === id) || SKINS[0];
-  }
-  function orbColor() { const sk = currentSkin(); return gravSide > 0 ? sk.right : sk.left; }
+  // The orb's two gravity-state colors (left pull / right pull).
+  const ORB_LEFT = "#ff5e7e", ORB_RIGHT = "#4dd2ff";
+  function orbColor() { return gravSide > 0 ? ORB_RIGHT : ORB_LEFT; }
 
   // Global pace. NORMAL is the shipped play speed (75% of the old baseline).
   // DEV_SLOW is a toggleable slow-motion for development/testing.
@@ -151,7 +140,6 @@
     continue: document.getElementById("screen-continue"),
     startfrom: document.getElementById("screen-startfrom"),
     shop: document.getElementById("screen-shop"),
-    skins: document.getElementById("screen-skins"),
   };
 
   // ---- Settings (persisted) ------------------------------------------------
@@ -367,9 +355,8 @@
   function build3DState() {
     const halfPlay = (W - 2 * WALL) / 2;
     const nx = (x) => (x - W / 2) / halfPlay;
-    const sk = currentSkin();
     return {
-      orbLeft: sk.left, orbRight: sk.right,   // selected skin recolors the orb
+      orbLeft: ORB_LEFT, orbRight: ORB_RIGHT,
       orbNX: Math.max(-1.2, Math.min(1.2, nx(orb.x))),
       orbNY: orbital === 4 ? (orb.y - H / 2) / (H / 2) : 0,
       wellL: orbital === 4 ? { x: nx(gpL.x), y: (gpL.y - H / 2) / (H / 2) } : null,
@@ -1532,7 +1519,6 @@
       if (a === "play") { devMode = false; start(); }
       else if (a === "startfrom") showStartFrom();
       else if (a === "shop") { refreshShop(); showScreen("shop"); }
-      else if (a === "skins") { refreshSkins(); showScreen("skins"); }
       else if (a === "howto") showScreen("howto");
       else if (a === "settings") { refreshToggles(); showScreen("settings"); }
       else if (a === "back") { showScreen("title"); refreshCoinsUI(); }
@@ -1579,32 +1565,6 @@
     setText("title-coins", coinsNow() + " coins" + (prem ? " · 2×" : ""));
     const sf = document.getElementById("btn-startfrom");
     if (sf) sf.hidden = unlocked < 2;        // unlocks after you first reach orbital 2 (score 100)
-  }
-
-  // Skins screen: buy with coins (auto-equips) or select an owned one.
-  function refreshSkins() {
-    setText("skins-balance", coinsNow() + " coins");
-    const list = document.getElementById("skins-list");
-    if (!list) return;
-    list.innerHTML = "";
-    const sel = window.TidalStore ? TidalStore.selectedSkin() : "default";
-    for (const sk of SKINS) {
-      const b = document.createElement("button");
-      const own = window.TidalStore && TidalStore.ownsSkin(sk.id);
-      b.className = "btn" + (sk.id === sel ? "" : " ghost");
-      b.textContent = sk.id === sel ? `${sk.name} — Selected ✓`
-        : own ? `${sk.name} — Select`
-        : `${sk.name} — ${sk.price} coins`;
-      b.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (!window.TidalStore || sk.id === TidalStore.selectedSkin()) return;
-        if (TidalStore.ownsSkin(sk.id)) TidalStore.selectSkin(sk.id);
-        else if (!TidalStore.buySkin(sk.id, sk.price)) return;   // can't afford
-        sfx("coin"); buzz("light");
-        refreshSkins(); refreshCoinsUI();
-      });
-      list.appendChild(b);
-    }
   }
 
   function refreshShop() {
@@ -1730,9 +1690,8 @@
   // ?shot=N → posed screenshot scene. Wait for `load` so the WebGL engine
   // module (deferred) is ready, otherwise 3D orbitals fall back to canvas.
   if (SHOT && SHOTS[SHOT]) window.addEventListener("load", () => setupShot(SHOTS[SHOT]));
-  // ?screen=shop|skins → open that screen directly (for screenshots / testing).
+  // ?screen=shop → open that screen directly (for screenshots / testing).
   if (params.get("screen") === "shop") window.addEventListener("load", () => { refreshShop(); showScreen("shop"); });
-  if (params.get("screen") === "skins") window.addEventListener("load", () => { refreshSkins(); showScreen("skins"); });
 
   // ---- PWA registration ----------------------------------------------------
   if ("serviceWorker" in navigator) {

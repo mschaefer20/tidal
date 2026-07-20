@@ -45,16 +45,22 @@
 
   // ---- Orbital 8 "Cosmic Strings": rotating laser lines that pulse deadly ---
   // A screen-fixed pivot above the orb row spins a full line clock-hand style.
-  // The line is only deadly where it crosses the orb's row, and only while
-  // firing; idle it stays faint, charge flickers bright with a row marker.
+  // To fire it LOCKS ON: rotation freezes, the strike x on the orb's row is
+  // fixed and marked through the whole charge, then the beam goes hot at that
+  // one spot. Dodging a known x is always possible — a sweeping kill point
+  // could corner the orb against a wall (guaranteed death), so it never sweeps
+  // while deadly. It also never locks onto a spot inside an imminent bar's
+  // gap (the one x the player is forced to occupy).
   const STR_OMEGA_MIN = 0.45;        // rad/s rotation (random per string + sign)
   const STR_OMEGA_MAX = 0.70;
   const STR_PIVOT_DY_MIN = 230;      // pivot height above the orb row
   const STR_PIVOT_DY_MAX = 300;
-  const STR_CHARGE = 0.7;            // s of bright flicker before the beam goes hot
-  const STR_FIRE = 0.9;              // s the beam is deadly
-  const STR_FIRE_EVERY_MIN = 2.2;    // s between fire windows (per string)
-  const STR_FIRE_EVERY_MAX = 3.6;
+  const STR_CHARGE = 0.9;            // s of locked-on flicker before the beam goes hot
+  const STR_FIRE = 0.8;              // s the beam is deadly (at the locked x)
+  const STR_FIRE_EVERY_MIN = 3.0;    // s between fire windows (per string)
+  const STR_FIRE_EVERY_MAX = 4.5;
+  const STR_FIRST_MIN = 3.5;         // s before a fresh string's first fire
+  const STR_FIRST_MAX = 5.0;
   const STR_KILL_W = 22;             // half-width of the deadly band at the orb row
   const STR_COS_MIN = 0.25;          // don't arm near-horizontal (crossing off-field)
 
@@ -708,8 +714,19 @@
     if (Math.abs(c) < 0.03) return -9999;
     return s.px + (ORB_Y - s.py) * Math.tan(s.ang);
   }
-  // A second string joins once the orbital's speed ramp passes the halfway mark.
-  function stringCount() { return difficulty() > 0.5 ? 2 : 1; }
+  // A second string joins late in the orbital's speed ramp.
+  function stringCount() { return difficulty() > 0.75 ? 2 : 1; }
+
+  // True if x sits inside (or within the kill band of) the gap of a bar that
+  // will reach the orb's row during the lock-on window — the player HAS to be
+  // there to pass, so the string must not strike it.
+  function stringBlocksGap(x) {
+    for (const b of bars) {
+      if (b.y < ORB_Y - 220 || b.y > ORB_Y + 10) continue;
+      if (x > b.gapX - STR_KILL_W && x < b.gapX + b.gapW + STR_KILL_W) return true;
+    }
+    return false;
+  }
 
   function updateStrings(dt) {
     while (strings.length < stringCount()) {
@@ -719,19 +736,21 @@
         ang: Math.random() * Math.PI,
         omega: randRange(STR_OMEGA_MIN, STR_OMEGA_MAX) * (Math.random() < 0.5 ? -1 : 1),
         phase: "idle",
-        t: randRange(1.5, 2.5),          // beam stays readable well before it first fires
+        fx: 0,                           // locked strike x while charging/firing
+        t: randRange(STR_FIRST_MIN, STR_FIRST_MAX),
       });
     }
     for (const s of strings) {
-      s.ang += s.omega * dt;
+      if (s.phase === "idle") s.ang += s.omega * dt;   // rotation freezes on lock-on
       s.t -= dt;
       if (s.phase === "idle") {
         if (s.t > 0) continue;
-        // Only arm when the beam's row-crossing is on-field and not sweeping so
-        // fast it would blanket the row (near-horizontal) — no cheap kills.
+        // Only lock on when the crossing is on-field, the beam isn't
+        // near-horizontal, and the spot isn't a gap the player must occupy.
         const xh = stringXHit(s);
-        if (Math.abs(Math.cos(s.ang)) > STR_COS_MIN && xh > WALL && xh < W - WALL) {
-          s.phase = "charge"; s.t = STR_CHARGE;
+        if (Math.abs(Math.cos(s.ang)) > STR_COS_MIN && xh > WALL && xh < W - WALL
+            && !stringBlocksGap(xh)) {
+          s.phase = "charge"; s.t = STR_CHARGE; s.fx = xh;
         } else {
           s.t = 0.3;                     // bad geometry right now — retry shortly
         }
@@ -740,8 +759,7 @@
         s.phase = "fire"; s.t = STR_FIRE;
         sfx("laser"); buzz("light");
       } else if (s.phase === "fire") {
-        const xh = stringXHit(s);
-        if (!shotMode && xh > 0 && xh < W && Math.abs(orb.x - xh) < STR_KILL_W) { die(); return; }
+        if (!shotMode && Math.abs(orb.x - s.fx) < STR_KILL_W) { die(); return; }
         if (s.t <= 0) { s.phase = "idle"; s.t = randRange(STR_FIRE_EVERY_MIN, STR_FIRE_EVERY_MAX); }
       }
     }
@@ -968,9 +986,10 @@
     if (ORB().whArena) updateWormholesArena(dt);
 
     // debris falls inward from the rim — spawns gradually, faster over time.
-    // Thinner while novas run, so the expanding rings stay readable.
+    // Thinner on the nova orbital, and paused entirely while a nova is live so
+    // a rock never blocks the one path through the ring's gap.
     nextDebris -= dt;
-    if (nextDebris <= 0) {
+    if (nextDebris <= 0 && !nova) {
       spawnDebris();
       nextDebris = Math.max(0.38, 1.5 - arenaTime * 0.05) * (ORB().novas ? 1.4 : 1);
     }
@@ -1019,9 +1038,16 @@
   function updateNova(dt) {
     nextNova -= dt;
     if (!nova && nextNova <= 0) {
+      // Place the gap where the sweep can actually carry the orb. The player
+      // only controls TIMING (via radius) — reachable angles span ~±1.4 rad
+      // around the hands-off meeting point, so a fully random gap would be
+      // unmakeable about half the time. Predict where the orb meets the ring
+      // if it does nothing, then jitter within the reachable window.
+      const tMeet = NOVA_CHARGE + (orb.rho - ARENA.rEvent) / NOVA_RING_SPEED;
+      const th0 = orb.theta - ARENA_OMEGA * tMeet;
       nova = {
         phase: "charge", t: NOVA_CHARGE,
-        gapAng: Math.random() * TAU,
+        gapAng: th0 + randRange(-0.7, 0.7),
         gapHalf: NOVA_GAP_HALF0 - NOVA_GAP_TIGHTEN * difficulty(),
       };
     }
@@ -1656,13 +1682,12 @@
     ctx.globalAlpha = Math.min(1, alpha + 0.25);
     ctx.fillStyle = "#ffffff";
     ctx.beginPath(); ctx.arc(s.px, s.py, 4, 0, TAU); ctx.fill();
-    // row-crossing marker: exactly where the beam can hit you
-    const xh = stringXHit(s);
-    if (s.phase !== "idle" && xh > 0 && xh < W) {
+    // locked strike marker: exactly where the beam will hit
+    if (s.phase !== "idle") {
       ctx.globalAlpha = s.phase === "fire" ? 0.95 : 0.6;
       ctx.shadowBlur = 14; ctx.shadowColor = COL;
       ctx.fillStyle = s.phase === "fire" ? "#ffffff" : COL;
-      ctx.beginPath(); ctx.arc(xh, ORB_Y, s.phase === "fire" ? 7 : 5, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(s.fx, ORB_Y, s.phase === "fire" ? 7 : 5, 0, TAU); ctx.fill();
     }
     ctx.restore();
   }

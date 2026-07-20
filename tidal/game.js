@@ -238,6 +238,10 @@
   // Persists across runs (it's a setting, not part of a game).
   let timeScale = params.has("slow") ? SPEED_DEV : SPEED_NORMAL;
 
+  // The orbital this run began at (>1 when begun via "Start From") — the death
+  // screen offers to restart there in addition to a from-scratch run.
+  let runStartOrbital = 1;
+
   function reset(startMode) {
     orb = { x: W / 2, vx: 0, y: ORB_Y, vy: 0, trail: [] };
     gravSide = 1;            // +1 pulls right, -1 pulls left
@@ -251,6 +255,7 @@
     paused = false;
     mode = startMode || (DEV_START_3D ? "3d" : "2d");
     orbital = mode === "3d" ? 2 : 1;
+    runStartOrbital = 1;
     intro = mode === "3d" ? 0 : 1;
     depthSpeed = DEPTH_SPEED_START;
     countdown = 0;
@@ -1434,14 +1439,24 @@
     if (coinsBtn) { coinsBtn.textContent = `Continue — ${cost} coins`; coinsBtn.disabled = coinsNow() < cost; }
     const adBtn = document.getElementById("cont-ad");
     if (adBtn) adBtn.hidden = adUsed || !window.TidalStore;   // one free ad-continue per run
+    // Runs begun via "Start From" get a restart-there button; the plain
+    // start-over is then relabeled so the two aren't ambiguous.
+    const ro = document.getElementById("cont-restart-orbital");
+    const started = runStartOrbital > 1;
+    if (ro) { ro.hidden = !started; ro.textContent = `Restart at ${ORBITAL_LABEL[runStartOrbital]}`; }
+    const so = document.getElementById("cont-startover");
+    if (so) so.textContent = started ? "Start from Orbital I" : "Start Over";
     setText("coin-balance", coinsNow() + " coins");
   }
   // Toggle between the choice buttons and the "spend coins?" confirmation.
   function showContinueConfirm(on) {
-    ["cont-ad", "cont-coins", "cont-startover", "cont-menu"].forEach((id) => {
+    ["cont-ad", "cont-coins", "cont-restart-orbital", "cont-startover", "cont-menu"].forEach((id) => {
       const el = document.getElementById(id); if (el) el.hidden = on;
     });
-    if (!on) { const ad = document.getElementById("cont-ad"); if (ad) ad.hidden = adUsed || !window.TidalStore; }
+    if (!on) {
+      const ad = document.getElementById("cont-ad"); if (ad) ad.hidden = adUsed || !window.TidalStore;
+      const ro = document.getElementById("cont-restart-orbital"); if (ro) ro.hidden = runStartOrbital <= 1;
+    }
     ["cont-confirm-text", "cont-yes", "cont-no"].forEach((id) => {
       const el = document.getElementById(id); if (el) el.hidden = !on;
     });
@@ -1565,6 +1580,10 @@
         else showContinueConfirm(false);
       } else if (a === "confirm-no") {
         showContinueConfirm(false);
+      } else if (a === "restart-orbital") {
+        finalizeRun();                 // submit the ended run's score first
+        screens.continue.classList.add("hidden");
+        startFrom(runStartOrbital);
       } else if (a === "startover") {
         finalizeRun();
         screens.continue.classList.add("hidden");
@@ -1638,6 +1657,7 @@
   function startFrom(n) {
     devMode = false;
     reset(ORBITALS[n - 1].dim);
+    runStartOrbital = n;
     score = orbitalThreshold(n);            // your journey resumes at this orbital's score
     scoreEl.textContent = score;
     resume();

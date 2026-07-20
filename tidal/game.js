@@ -62,7 +62,7 @@
     { n: 6,  dim: "2d", wh: true },                                // wormholes (wave two intro)
     { n: 7,  dim: "3d", wh: true, whEvery: [2.0, 3.4] },           // wormhole tunnel (sparser pairs at tunnel speed)
     { n: 8,  dim: "2d", wh: true, whChaos: true, strings: true },  // cosmic strings
-    { n: 9,  dim: "3d", wh: true, whY: true, drift: true, wells: true, taper: true }, // wormhole tunnel, harder
+    { n: 9,  dim: "3d", wh: true, whY: true, drift: true, wells: true, taper: true, whEvery: [1.4, 2.4] }, // wormhole tunnel, harder (densest portals)
     { n: 10, dim: "2d", arena: true, novas: true, whArena: true }, // supernova finale
   ];
   // The active orbital's entry (or orbital n's, when given).
@@ -397,7 +397,7 @@
       })),
       bonuses: bonuses.filter((o) => !o.taken && o.d > -1).map((o) => ({ nx: nx(o.x), d: o.d })),
       wormholes: ORB().wh
-        ? wormholes.filter((w) => w.d > -1).map((w) => ({ d: w.d, nxa: nx(w.xa), nxb: nx(w.xb), age: w.age, lock: w.lock }))
+        ? wormholes.filter((w) => w.d > -1).map((w) => ({ d: w.d, nxa: nx(w.xa), nxb: nx(w.xb), ny: w.ny || 0, age: w.age, lock: w.lock }))
         : null,
     };
   }
@@ -670,7 +670,10 @@
     let wd = ref + DEPTH_SPACING / 2;             // half a spacing = between rings
     while (wd < D_SPAWN - DEPTH_SPACING) wd += DEPTH_SPACING;
     while (wd > D_SPAWN) wd -= DEPTH_SPACING;
-    wormholes.push({ d: wd, xa: cx - half, xb: cx + half, age: 0, lock: 0 });
+    // Orbital 9: rings sit at varying heights (the orb drifts vertically there),
+    // stored normalized like orbNY. One shared y per pair keeps the link readable.
+    const ny = ORB().whY ? randRange(-0.55, 0.55) : 0;
+    wormholes.push({ d: wd, xa: cx - half, xb: cx + half, ny, age: 0, lock: 0 });
   }
 
   function updateWormholes3D(dt, dd) {
@@ -690,11 +693,14 @@
     for (const w of wormholes) {
       if (w.age < WH_TELEGRAPH || w.lock > 0) continue;
       if (w.d > 0.4 || w.d < -0.4) continue;             // only at the camera plane
+      // Orbital 9: the orb must also be at the ring's height to enter.
+      if (ORB().whY && Math.abs(orb.y - (H / 2 + w.ny * (H / 2))) > WH_R + 10) continue;
       const inA = Math.abs(orb.x - w.xa) < WH_R + 4;
       const inB = Math.abs(orb.x - w.xb) < WH_R + 4;
       if (!inA && !inB) continue;
       orb.x = inA ? w.xb : w.xa;
       orb.vx = 0;
+      orb.vy *= 0.3;               // gentle exit — don't fling into the ceiling
       w.lock = WH_LOCK;
       flash = Math.max(flash, 0.4);
       sfx("warp"); buzz("medium");
@@ -1206,6 +1212,26 @@
       if (o.taken || o.d < -0.5) continue;
       const p = proj(o.x, ORB_Y, o.d);
       glowCircle(p.x, p.y, Math.max(2, 9 * p.s), "#ffd84d");
+    }
+
+    // wormhole ring pairs — basic projected rings (the WebGL engine draws the
+    // real tori; without this the fallback had invisible-but-active portals)
+    if (orbitalHasWormholes()) {
+      for (const w of wormholes) {
+        if (w.d < -0.5) continue;
+        const wy = ORB().whY ? H / 2 + (w.ny || 0) * (H / 2) : ORB_Y;
+        const active = w.age >= WH_TELEGRAPH;
+        const dim = w.lock > 0 ? 0.35 : active ? 0.9 : 0.4;
+        for (const cx of [w.xa, w.xb]) {
+          const p = proj(cx, wy, w.d);
+          ctx.save();
+          ctx.globalAlpha = dim;
+          ctx.strokeStyle = "#b884ff"; ctx.lineWidth = 2.5;
+          ctx.shadowBlur = 12; ctx.shadowColor = "#b884ff";
+          ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(3, WH_R * 1.4 * p.s), 0, Math.PI * 2); ctx.stroke();
+          ctx.restore();
+        }
+      }
     }
 
     // orb (always at the camera plane)

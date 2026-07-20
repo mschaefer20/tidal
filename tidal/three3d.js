@@ -417,7 +417,7 @@ const api = {
       m.rotation.y += 0.06;
     }
 
-    // Orbital 7 wormhole rings
+    // Tunnel wormhole rings (orbital 7 centered; orbital 9 at varying heights)
     for (let i = 0; i < whPool.length; i++) {
       const pair = whPool[i], data = s.wormholes && s.wormholes[i];
       if (!data) { pair.a.visible = false; pair.b.visible = false; continue; }
@@ -429,7 +429,7 @@ const api = {
       for (const [k, cx] of [["a", data.nxa], ["b", data.nxb]]) {
         const ring = pair[k];
         ring.visible = true;
-        ring.position.set(cx * HALFW, 0, z);
+        ring.position.set(cx * HALFW, (data.ny || 0) * FY, z);
         ring.rotation.z = spin;
         ring.scale.setScalar(scl);
         ring.material.opacity = op;

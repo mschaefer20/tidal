@@ -44,15 +44,29 @@
   //   1: 2D pendulum (the original)      2: 3D tunnel
   //   3: 2D multi-gravity expansion      4: 3D expansion
   //   5: black-hole boss (finale)
+  // Each orbital is its base render mode (dim) plus the capability flags the
+  // update/draw code keys off — flags, not orbital numbers, so mechanics can
+  // be recombined freely in later orbitals.
+  //   binary: two oscillating gravity wells      drift: vertical orb motion (3D)
+  //   wells: render wells + pull-beam (3D)       taper: tapered/varied 3D gaps
+  //   arena: top-down survival arena             surges: arena gravity surges
+  //   wh: wormholes  whChaos: drifting/hopping   whY: rings at varying heights
+  //   whArena: polar arena portals               strings: rotating laser lines
+  //   novas: expanding shockwave rings
   const ORBITALS = [
-    { n: 1, dim: "2d" },   // 2D pendulum
-    { n: 2, dim: "3d" },   // 3D tunnel
-    { n: 3, dim: "2d" },   // 2D binary
-    { n: 4, dim: "3d" },   // 3D binary tunnel
-    { n: 5, dim: "2d" },   // black-hole survival arena
-    { n: 6, dim: "2d" },   // wormholes (wave two intro)
-    { n: 7, dim: "3d" },   // wormhole tunnel (wave two 3D)
+    { n: 1,  dim: "2d" },                                          // 2D pendulum
+    { n: 2,  dim: "3d" },                                          // 3D tunnel
+    { n: 3,  dim: "2d", binary: true },                            // 2D binary
+    { n: 4,  dim: "3d", drift: true, wells: true, taper: true },   // 3D binary tunnel
+    { n: 5,  dim: "2d", arena: true, surges: true },               // black-hole survival arena
+    { n: 6,  dim: "2d", wh: true },                                // wormholes (wave two intro)
+    { n: 7,  dim: "3d", wh: true },                                // wormhole tunnel
+    { n: 8,  dim: "2d", wh: true, whChaos: true, strings: true },  // cosmic strings
+    { n: 9,  dim: "3d", wh: true, whY: true, drift: true, wells: true, taper: true }, // wormhole tunnel, harder
+    { n: 10, dim: "2d", arena: true, novas: true, whArena: true }, // supernova finale
   ];
+  // The active orbital's entry (or orbital n's, when given).
+  function ORB(n) { return ORBITALS[(n || orbital) - 1] || ORBITALS[0]; }
   // Score to reach orbital n. Dev mode spaces them 7 apart (7/14/21/28);
   // regular mode 100 apart (100/200/300/400).
   function orbitalThreshold(n) { return n <= 1 ? 0 : (devMode ? 7 : 100) * (n - 1); }
@@ -69,7 +83,7 @@
     const base = DEPTH_SPEED_START + (DEPTH_SPEED_MAX - DEPTH_SPEED_START) * difficulty();
     return base * (orbital >= 4 ? O4_SPEED_MULT : 1);
   }
-  const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V", "ORBITAL VI", "ORBITAL VII"];
+  const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V", "ORBITAL VI", "ORBITAL VII", "ORBITAL VIII", "ORBITAL IX", "ORBITAL X"];
 
   // The orb's two gravity-state colors (left pull / right pull).
   const ORB_LEFT = "#ff5e7e", ORB_RIGHT = "#4dd2ff";
@@ -199,8 +213,8 @@
   // and ?slow to boot in dev slow-motion.
   const params = new URLSearchParams(location.search);
   const DEV_START_3D = params.has("3d") || params.get("mode") === "3d";
-  // Dev shortcut: ?orbital=N (1-6) boots every run straight into that Orbital.
-  const DEV_START_ORBITAL = Math.max(0, Math.min(7, Number(params.get("orbital")) || 0));
+  // Dev shortcut: ?orbital=N boots every run straight into that Orbital.
+  const DEV_START_ORBITAL = Math.max(0, Math.min(ORBITALS.length, Number(params.get("orbital")) || 0));
   // Screenshot helper: ?shot=N drops into a posed scene (score/best/orbital, no death).
   const SHOT = Math.max(0, Math.min(5, Number(params.get("shot")) || 0));
   const SHOTS = {
@@ -216,7 +230,7 @@
   let devMode = params.has("dev") || DEV_START_3D || DEV_START_ORBITAL > 0;
   // Highest orbital the player has reached — unlocks "Start From" (persisted).
   const UNLOCK_KEY = "tidal-unlocked";
-  let unlocked = Math.max(1, Math.min(7, Number(localStorage.getItem(UNLOCK_KEY) || 1)));
+  let unlocked = Math.max(1, Math.min(ORBITALS.length, Number(localStorage.getItem(UNLOCK_KEY) || 1)));
   function setUnlocked(n) {
     if (n > unlocked) { unlocked = n; localStorage.setItem(UNLOCK_KEY, String(unlocked)); }
   }
@@ -287,7 +301,11 @@
     orb.y = n === 3 ? H / 2 : ORB_Y;
     orb.vx = 0;
     orb.vy = 0;
-    if (n === 3 || n === 4) g3Time = 0;
+    if (ORB(n).binary || ORB(n).drift) g3Time = 0;
+    // Wormholes never survive an orbital change — their coordinate space
+    // (y-scroll vs depth vs polar) differs between orbitals.
+    wormholes = [];
+    nextWormhole = randRange(WH_EVERY_MIN, WH_EVERY_MAX);
     if (mode === "3d") {
       depthSpeed = DEPTH_SPEED_START;
       intro = 0;
@@ -295,9 +313,9 @@
       build3DField();
       show3D();
     } else {
-      intro = n === 5 ? 0 : 1;   // the arena gets a settle-in intro
+      intro = ORB(n).arena ? 0 : 1;   // the arena gets a settle-in intro
       hide3D();
-      if (n === 5) buildArena(); else build2DField();
+      if (ORB(n).arena) buildArena(); else build2DField();
     }
     if (window.TidalFX) TidalFX.setOrbital(n);
     playShiftBanner(n);
@@ -358,9 +376,9 @@
     return {
       orbLeft: ORB_LEFT, orbRight: ORB_RIGHT,
       orbNX: Math.max(-1.2, Math.min(1.2, nx(orb.x))),
-      orbNY: orbital === 4 ? (orb.y - H / 2) / (H / 2) : 0,
-      wellL: orbital === 4 ? { x: nx(gpL.x), y: (gpL.y - H / 2) / (H / 2) } : null,
-      wellR: orbital === 4 ? { x: nx(gpR.x), y: (gpR.y - H / 2) / (H / 2) } : null,
+      orbNY: ORB().drift ? (orb.y - H / 2) / (H / 2) : 0,
+      wellL: ORB().wells ? { x: nx(gpL.x), y: (gpL.y - H / 2) / (H / 2) } : null,
+      wellR: ORB().wells ? { x: nx(gpR.x), y: (gpR.y - H / 2) / (H / 2) } : null,
       gravSide,
       intro,
       travel,
@@ -373,7 +391,7 @@
         taper: b.taper || 0,
       })),
       bonuses: bonuses.filter((o) => !o.taken && o.d > -1).map((o) => ({ nx: nx(o.x), d: o.d })),
-      wormholes: orbital === 7
+      wormholes: ORB().wh
         ? wormholes.filter((w) => w.d > -1).map((w) => ({ d: w.d, nxa: nx(w.xa), nxb: nx(w.xb), age: w.age, lock: w.lock }))
         : null,
     };
@@ -389,7 +407,7 @@
   }
 
   function randRange(a, b) { return a + Math.random() * (b - a); }
-  function orbitalHasWormholes() { return orbital === 6 || orbital === 7; }
+  function orbitalHasWormholes() { return !!ORB().wh; }
 
   // Spawn one linked portal pair above the screen: two rings a moderate gap
   // apart, placed at a random x, scrolling down together. Enter either → snap
@@ -422,11 +440,11 @@
     let gap = gapWidth();
     // Orbital 4: each gap varies up to ±20% so the tunnel reads less uniform
     // (worst case ~77px vs the 26px orb — tight but fair).
-    if (orbital === 4) gap *= 0.8 + Math.random() * 0.4;
+    if (ORB().taper) gap *= 0.8 + Math.random() * 0.4;
     const gapX = randomGapX(gap);
     // Orbital 4: gaps also taper — up to 20% wider/narrower at the top vs the
     // bottom (±10% around the middle), so where you cross vertically matters.
-    const taper = orbital === 4 ? Math.random() * 0.2 - 0.1 : 0;
+    const taper = ORB().taper ? Math.random() * 0.2 - 0.1 : 0;
     bars.push({ d, gapX, gapW: gap, taper, passed: false });
     if (Math.random() < 0.6) {
       const bx = gapX + Math.random() * gap;
@@ -439,8 +457,8 @@
     if (flash > 0) flash = Math.max(0, flash - dt * 1.6);
     if (invuln > 0) invuln = Math.max(0, invuln - dt);
     if (mode === "3d") return update3D(dt);
-    if (orbital === 5) return updateArena(dt);
-    if (orbital === 3) return updateBinary(dt);
+    if (ORB().arena) return updateArena(dt);
+    if (ORB().binary) return updateBinary(dt);
     return update2D(dt);
   }
 
@@ -854,10 +872,10 @@
     // it to gravity — a clear beat to see it before it starts drifting.
     if (intro < 0.6) {
       orb.x = W / 2; orb.vx = 0;
-      if (orbital === 4) { orb.y = H / 2; orb.vy = 0; }   // center vertically too
+      if (ORB().drift) { orb.y = H / 2; orb.vy = 0; }   // center vertically too
       orb.trail.push({ x: orb.x, y: orb.y });
       if (orb.trail.length > 14) orb.trail.shift();
-    } else if (orbital === 4) {
+    } else if (ORB().drift) {
       if (!stepBinary3D(dt)) return die();                // Orbital 4: 2D oscillating-well flight
     } else if (!stepOrb(dt)) {
       return die();
@@ -913,9 +931,9 @@
     if (mode === "3d") {
       if (engine3D) drawWarpUnderlay();   // speed-lines behind the fading WebGL layer
       else draw3D();                       // canvas fallback
-    } else if (orbital === 5) {
+    } else if (ORB().arena) {
       drawArena();
-    } else if (orbital === 3) {
+    } else if (ORB().binary) {
       drawBinary();
     } else {
       draw2D();
@@ -1308,7 +1326,7 @@
     if (dt > 0.05) dt = 0.05;     // clamp after tab-switch / hitch
     // transition fly-in / intro runs on real time (independent of slow-mo)
     if (mode === "3d" && intro < 1) intro = Math.min(1, intro + dt / 4.0);
-    else if (orbital === 5 && intro < 1) intro = Math.min(1, intro + dt / 2.0);
+    else if (ORB().arena && intro < 1) intro = Math.min(1, intro + dt / 2.0);
 
     // Countdown before a new orbital: freeze gameplay, let the intro/camera
     // play, show 3-2-1, then release into play.
@@ -1474,7 +1492,7 @@
     gravSide *= -1;
     // Shed some momentum on flip so the reversal registers immediately,
     // making the back-and-forth feel reactive rather than floaty.
-    if (orbital === 5) {
+    if (ORB().arena) {
       orb.vrho *= 0.5;       // arena: shed radial momentum for a responsive sway
     } else {
       orb.vx *= 0.55;

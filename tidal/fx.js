@@ -82,6 +82,14 @@
     start() {
       tone({ freq: 130, type: "sine", dur: 0.32, gain: 0.16, to: 196 });  // gentle low swell
     },
+    warp() {   // wormhole teleport: quick rising shimmer
+      tone({ freq: 220, type: "sine", dur: 0.14, gain: 0.22, to: 520 });
+      tone({ freq: 330, type: "triangle", dur: 0.16, gain: 0.14, to: 700, delay: 0.05 });
+    },
+    laser() {  // cosmic-string fire: descending zap
+      tone({ freq: 880, type: "sawtooth", dur: 0.22, gain: 0.16, to: 160 });
+      noise(0.08, 0.05);
+    },
   };
 
   // ---- music: one dark synth track per Orbital -----------------------------
@@ -94,6 +102,9 @@
     5: { arp: [110.00, 130.81, 155.56, 185.00, 196.00, 185.00, 155.56, 130.81], roots: [55.00, 58.27, 55.00, 49.00], step: 150, type: "sawtooth", lp: 1400, gain: 0.10, bass: 0.28 }, // V — ominous boss
     6: { arp: [123.47, 164.81, 185.00, 246.94, 277.18, 246.94, 185.00, 164.81], roots: [61.74, 61.74, 82.41, 92.50], step: 190, type: "triangle", lp: 1300, gain: 0.10, bass: 0.24 }, // VI — floaty B suspended (wormholes)
     7: { arp: [138.59, 185.00, 220.00, 277.18, 329.63, 277.18, 220.00, 185.00], roots: [69.30, 69.30, 92.50, 103.83], step: 175, type: "sawtooth", lp: 1500, gain: 0.10, bass: 0.24 }, // VII — driving F# (wormhole tunnel)
+    8: { arp: [164.81, 196.00, 220.00, 246.94, 329.63, 246.94, 220.00, 174.61], roots: [82.41, 82.41, 87.31, 77.78], step: 140, type: "sawtooth", lp: 1500, gain: 0.09, bass: 0.26 }, // VIII — tense staccato Em, b9 menace (cosmic strings)
+    9: { arp: [155.56, 207.65, 246.94, 311.13, 369.99, 311.13, 246.94, 207.65], roots: [103.83, 103.83, 123.47, 92.50], step: 130, type: "sawtooth", lp: 1700, gain: 0.09, bass: 0.24 }, // IX — hardest-driving G#m (wormhole tunnel II)
+    10: { arp: [110.00, 116.54, 110.00, 103.83, 130.81, 110.00, 98.00, 116.54], roots: [55.00, 51.91, 49.00, 46.25], step: 170, type: "sawtooth", lp: 1200, gain: 0.11, bass: 0.30 }, // X — apocalyptic Am, descending bass (supernova)
   };
   function trk() { return TRACKS[currentTrack] || TRACKS[1]; }
 
@@ -169,7 +180,7 @@
     // Switch the music track to the given Orbital (restarts the loop on the
     // new key/tempo; running notes ring out so the change feels continuous).
     setOrbital(n) {
-      currentTrack = Math.max(1, Math.min(7, n || 1));
+      currentTrack = Math.max(1, Math.min(10, n || 1));
       if (musicOn && ctx) startMusic();
     },
   };

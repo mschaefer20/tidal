@@ -88,9 +88,12 @@ Keyboard (browser only): Space/Enter flip, Esc/P pause.
   (`arena`, `drift`, `wells`, `wh`, `whY`, `whChaos`, `whArena`, `strings`,
   `novas`, `whEvery` cadence override) read via `ORB()` — extend orbitals by
   composing flags, not by adding `=== N` literals. VIII = cosmic strings
-  (rotating pulsing lasers + chaos portals), IX = wormhole tunnel with
-  vertical-drift rings, X = supernova finale (shockwave rings with one gap +
-  polar portals on the O5 arena). TRACKS 8–10 + `warp`/`laser` sfx in fx.js.
+  (lock-on lasers + chaos portals), IX = cosmic strings in the 3D tunnel
+  (beam lines rush at you like barriers, spin while far, lock their angle at
+  depth 2 with a laser cue — plus IV's wells/drift and varying-height
+  portals; `str3` flag), X = supernova finale (shockwave rings with one
+  always-reachable gap + polar portals on the O5 arena; debris pauses during
+  novas). TRACKS 8–10 + `warp`/`laser` sfx in fx.js.
   Browser-smoke-tested (all 10 boot + play, zero console errors).
   **Next: real playtesting/tuning** — all `STR_*`/`NOVA_*`/`WH_*` tunables are
   constants at the top of game.js.

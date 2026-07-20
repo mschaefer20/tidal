@@ -33,7 +33,7 @@ let wellL, wellR, pullLine;   // Orbital 4: visible gravity wells + pull line
 const UP = new THREE.Vector3(0, 1, 0);
 const _dir = new THREE.Vector3();
 const _side = new THREE.Color();     // reused: orb gravity-state color
-let barPool = [], bonusPool = [], whPool = [];
+let barPool = [], bonusPool = [], whPool = [], strPool = [];
 let toonMap;
 let inited = false;
 
@@ -315,6 +315,19 @@ const api = {
       whPool.push(pair);
     }
 
+    // Orbital 9 cosmic-string beams — long thin glowing bars through the
+    // tunnel center at a locked angle (bloom lights them up)
+    const strGeo = new THREE.BoxGeometry(1, 0.05, 0.05);
+    for (let i = 0; i < 3; i++) {
+      const beam = new THREE.Mesh(
+        strGeo,
+        new THREE.MeshBasicMaterial({ color: 0xff5e7e, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })
+      );
+      beam.visible = false;
+      scene.add(beam);
+      strPool.push(beam);
+    }
+
     composer = new EffectComposer(renderer);
     composer.setPixelRatio(renderer.getPixelRatio());   // render passes at full res, no upscaling
     composer.addPass(new RenderPass(scene, camera));
@@ -339,6 +352,7 @@ const api = {
     for (const b of barPool) { b.left.visible = false; b.right.visible = false; }
     for (const m of bonusPool) m.visible = false;
     for (const p of whPool) { p.a.visible = false; p.b.visible = false; }
+    for (const m of strPool) m.visible = false;
   },
 
   render(s) {
@@ -415,6 +429,18 @@ const api = {
       m.visible = true;
       m.position.set(data.nx * HALFW, 0, -data.d * DZ);
       m.rotation.y += 0.06;
+    }
+
+    // Orbital 9 cosmic-string beams. Direction arrives in normalized units;
+    // rebuild the world-space angle from the anisotropic x/y scales.
+    for (let i = 0; i < strPool.length; i++) {
+      const beam = strPool[i], data = s.strings3d && s.strings3d[i];
+      if (!data) { beam.visible = false; continue; }
+      beam.visible = true;
+      beam.position.set(0, 0, -data.d * DZ);
+      beam.rotation.z = Math.atan2(data.dyn * FY, data.dxn * HALFW);
+      beam.scale.set(HALFW * 6, data.locked ? 1.7 : 1, 1);
+      beam.material.opacity = (data.locked ? 0.95 : 0.35) * Math.min(1, Math.max(0, (6 - data.d) / 3));
     }
 
     // Tunnel wormhole rings (orbital 7 centered; orbital 9 at varying heights)

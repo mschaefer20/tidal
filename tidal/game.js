@@ -64,6 +64,23 @@
   const STR_KILL_W = 22;             // half-width of the deadly band at the orb row
   const STR_COS_MIN = 0.25;          // don't arm near-horizontal (crossing off-field)
 
+  // ---- Orbital 9: cosmic strings in the tunnel ------------------------------
+  // The 3D translation of Orbital 8: beam lines rush down the tunnel like
+  // barriers. A beam spins decoratively while far, LOCKS its angle at
+  // STR3_LOCK_D (laser cue) so the player gets a fixed line to dodge, and is
+  // deadly at the camera plane unless the orb is clear of the line. Beams
+  // arrive between barrier rows, never on one.
+  const STR3_EVERY_MIN = 2.6;        // s between beams
+  const STR3_EVERY_MAX = 4.0;
+  const STR3_MAX = 2;                // beams that can share the tunnel
+  const STR3_LOCK_D = 2.0;           // depth where the angle locks (the read)
+  const STR3_SPIN = 0.55;            // rad of decorative spin per depth unit while far
+  const STR3_KILL = 26;              // distance from the line that kills
+  const STR3_COS_MIN = 0.55;         // locked angle avoids near-horizontal lines —
+                                     // vertical control is the weaker axis, and the
+                                     // renderer's y-squash makes pixel-space angles
+                                     // LOOK more horizontal than they play
+
   const BAR_SPACING = 230;           // vertical distance between barriers
 
   // ---- Orbital progression -------------------------------------------------
@@ -90,7 +107,7 @@
     { n: 6,  dim: "2d", wh: true },                                // wormholes (wave two intro)
     { n: 7,  dim: "3d", wh: true, whEvery: [2.0, 3.4] },           // wormhole tunnel (sparser pairs at tunnel speed)
     { n: 8,  dim: "2d", wh: true, whChaos: true, strings: true },  // cosmic strings
-    { n: 9,  dim: "3d", wh: true, whY: true, drift: true, wells: true, taper: true, whEvery: [1.4, 2.4] }, // wormhole tunnel, harder (densest portals)
+    { n: 9,  dim: "3d", wh: true, whY: true, drift: true, wells: true, str3: true, whEvery: [1.8, 3.0] }, // cosmic strings in the tunnel (3D orbital 8)
     { n: 10, dim: "2d", arena: true, novas: true, whArena: true, whEvery: [4.0, 6.0] }, // supernova finale
   ];
   // The active orbital's entry (or orbital n's, when given).
@@ -244,7 +261,8 @@
   let orb, gravSide, bars, bonuses, scroll, score, running, lastT, rafId, shake, paused;
   let mode, depthSpeed, flash, intro, travel, orbital, countdown, invuln, orbitalStartScore, diffFloor;
   let wormholes, nextWormhole;  // Orbital 6: active portal pairs + spawn timer
-  let strings;                  // Orbital 8: rotating cosmic-string lasers
+  let strings;                  // Orbitals 8/9: cosmic-string lasers (2D pulse / 3D depth)
+  let nextStr3;                 // Orbital 9: beam spawn timer
   let continues, adUsed;        // continue ladder: count this run + whether the ad was used
   let frozen = false;           // shot mode: freeze the scene to capture a screenshot
   const COUNTDOWN_TIME = 3.0;   // wait + 3-2-1 before each new orbital (2-5)
@@ -316,7 +334,7 @@
     orbitalStartScore = 0;
     diffFloor = 0;
     wormholes = []; nextWormhole = randRange(WH_EVERY_MIN, WH_EVERY_MAX);
-    strings = [];
+    strings = []; nextStr3 = randRange(STR3_EVERY_MIN, STR3_EVERY_MAX);
     continues = 0;
     adUsed = false;
     g3Time = 0;
@@ -363,7 +381,7 @@
     // (y-scroll vs depth vs polar) differs between orbitals.
     wormholes = [];
     nextWormhole = nextWormholeDelay();
-    strings = [];
+    strings = []; nextStr3 = randRange(STR3_EVERY_MIN, STR3_EVERY_MAX);
     if (mode === "3d") {
       depthSpeed = DEPTH_SPEED_START;
       intro = 0;
@@ -451,6 +469,14 @@
       bonuses: bonuses.filter((o) => !o.taken && o.d > -1).map((o) => ({ nx: nx(o.x), d: o.d })),
       wormholes: ORB().wh
         ? wormholes.filter((w) => w.d > -1).map((w) => ({ d: w.d, nxa: nx(w.xa), nxb: nx(w.xb), ny: w.ny || 0, age: w.age, lock: w.lock }))
+        : null,
+      // Beam direction in NORMALIZED units — the renderer's x/y world scales
+      // differ, so the pixel-space angle must be rebuilt on its side.
+      strings3d: ORB().str3
+        ? strings.filter((s) => s.d > -1).map((s) => {
+            const a = string3Ang(s);
+            return { d: s.d, dxn: Math.sin(a) / halfPlay, dyn: Math.cos(a) / (H / 2), locked: s.d <= STR3_LOCK_D };
+          })
         : null,
     };
   }
@@ -826,6 +852,43 @@
     }
   }
 
+  // ---- Orbital 9: cosmic strings rushing down the tunnel --------------------
+  function spawnString3D() {
+    let a;
+    do { a = Math.random() * Math.PI; } while (Math.abs(Math.cos(a)) <= STR3_COS_MIN);
+    const ref = bars.length ? bars[0].d : 0;      // arrive between barrier rows
+    let sd = ref + DEPTH_SPACING / 2;
+    while (sd < D_SPAWN - DEPTH_SPACING) sd += DEPTH_SPACING;
+    while (sd > D_SPAWN) sd -= DEPTH_SPACING;
+    strings.push({ d: sd, aFinal: a, passed: false });
+  }
+  // Rendered angle: decorative spin while far, settling onto aFinal at lock.
+  function string3Ang(s) { return s.aFinal + Math.max(0, s.d - STR3_LOCK_D) * STR3_SPIN; }
+
+  // Returns true if a beam caught the orb at the camera plane.
+  function updateStrings3D(dt, dd) {
+    for (const s of strings) {
+      const wasFar = s.d > STR3_LOCK_D;
+      s.d -= dd;
+      if (wasFar && s.d <= STR3_LOCK_D) { sfx("laser"); buzz("light"); }   // lock-on cue
+    }
+    nextStr3 -= dt;
+    if (nextStr3 <= 0 && strings.length < STR3_MAX) {
+      spawnString3D();
+      nextStr3 = randRange(STR3_EVERY_MIN, STR3_EVERY_MAX);
+    }
+    for (const s of strings) {
+      if (s.passed || s.d > 0) continue;
+      s.passed = true;
+      // distance from the orb to the locked line through the tunnel center
+      const ox = orb.x - W / 2, oy = orb.y - H / 2;
+      const cross = Math.sin(s.aFinal) * oy - Math.cos(s.aFinal) * ox;
+      if (!shotMode && Math.abs(cross) < STR3_KILL) return true;
+    }
+    strings = strings.filter((s) => s.d > -1);
+    return false;
+  }
+
   // Orbital 6: scroll portal pairs, spawn on a timer, teleport on entry.
   // Orbital 8 (whChaos): pairs also drift sinusoidally as a unit and
   // occasionally blink out and reappear at a new x (always re-telegraphed).
@@ -1173,6 +1236,7 @@
     }
 
     if (orbitalHasWormholes()) updateWormholes3D(dt, dd);
+    if (ORB().str3 && updateStrings3D(dt, dd)) return die();
 
     // recycle + keep the tunnel populated
     bars = bars.filter((b) => b.d > -1);
@@ -1548,6 +1612,26 @@
           ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(3, WH_R * 1.4 * p.s), 0, Math.PI * 2); ctx.stroke();
           ctx.restore();
         }
+      }
+    }
+
+    // cosmic-string beams (fallback rendering; the WebGL engine draws them lit)
+    if (ORB().str3) {
+      for (const s of strings) {
+        if (s.d < -0.5) continue;
+        const a = string3Ang(s);
+        const locked = s.d <= STR3_LOCK_D;
+        const c = proj(W / 2, H / 2, s.d);
+        const len = 900 * c.s;
+        ctx.save();
+        ctx.globalAlpha = (locked ? 0.85 : 0.3) * Math.min(1, Math.max(0, (6 - s.d) / 3));
+        ctx.strokeStyle = "#ff5e7e"; ctx.lineWidth = Math.max(1.5, 3.5 * c.s);
+        if (locked) { ctx.shadowBlur = 12; ctx.shadowColor = "#ff5e7e"; }
+        ctx.beginPath();
+        ctx.moveTo(c.x - Math.sin(a) * len, c.y - Math.cos(a) * len);
+        ctx.lineTo(c.x + Math.sin(a) * len, c.y + Math.cos(a) * len);
+        ctx.stroke();
+        ctx.restore();
       }
     }
 

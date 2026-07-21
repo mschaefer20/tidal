@@ -2035,8 +2035,12 @@
   document.addEventListener("pointerdown", unlockAudio);
   document.addEventListener("keydown", unlockAudio);
 
-  // Lock the page: stop the WebView from scrolling/panning on swipes.
-  document.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
+  // Lock the page: stop the WebView from scrolling/panning on swipes —
+  // except inside the Start From screen, whose orbital list really scrolls.
+  document.addEventListener("touchmove", (e) => {
+    if (e.target.closest && e.target.closest("#screen-startfrom")) return;
+    e.preventDefault();
+  }, { passive: false });
 
   canvas.addEventListener("pointerdown", onPress);
   startBtn.addEventListener("click", (e) => {

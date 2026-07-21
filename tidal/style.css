@@ -214,6 +214,9 @@ html, body {
   justify-content: flex-start;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  /* the page locks touch gestures globally (touch-action: none on body) —
+     re-allow vertical panning here so the list can actually scroll on iOS */
+  touch-action: pan-y;
 }
 #screen-startfrom > * { flex-shrink: 0; }
 #screen-startfrom > h2 { margin-top: auto; }

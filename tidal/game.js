@@ -63,6 +63,8 @@
   const STR_FIRST_MAX = 5.0;
   const STR_KILL_W = 22;             // half-width of the deadly band at the orb row
   const STR_COS_MIN = 0.25;          // don't arm near-horizontal (crossing off-field)
+  const STR_COL = "#ffa640";         // beam color (8 + 9): yellow-orange, distinct
+                                     // from the orb's pink and the background reds
 
   // ---- Orbital 9: cosmic strings in the tunnel ------------------------------
   // The 3D translation of Orbital 8: beam lines rush down the tunnel like
@@ -70,12 +72,12 @@
   // STR3_LOCK_D (laser cue) so the player gets a fixed line to dodge, and is
   // deadly at the camera plane unless the orb is clear of the line. Beams
   // arrive between barrier rows, never on one.
-  const STR3_EVERY_MIN = 2.6;        // s between beams
-  const STR3_EVERY_MAX = 4.0;
-  const STR3_MAX = 2;                // beams that can share the tunnel
-  const STR3_LOCK_D = 2.0;           // depth where the angle locks (the read)
+  const STR3_EVERY_MIN = 3.4;        // s between beams
+  const STR3_EVERY_MAX = 5.0;
+  const STR3_MAX = 1;                // one beam at a time — two proved too much
+  const STR3_LOCK_D = 3.2;           // depth where the angle locks (earlier = more warning)
   const STR3_SPIN = 0.55;            // rad of decorative spin per depth unit while far
-  const STR3_KILL = 26;              // distance from the line that kills
+  const STR3_KILL = 22;              // distance from the line that kills
   const STR3_COS_MIN = 0.55;         // locked angle avoids near-horizontal lines —
                                      // vertical control is the weaker axis, and the
                                      // renderer's y-squash makes pixel-space angles
@@ -1647,8 +1649,8 @@
         const len = 900 * c.s;
         ctx.save();
         ctx.globalAlpha = (locked ? 0.85 : 0.3) * Math.min(1, Math.max(0, (6 - s.d) / 3));
-        ctx.strokeStyle = "#ff5e7e"; ctx.lineWidth = Math.max(1.5, 3.5 * c.s);
-        if (locked) { ctx.shadowBlur = 12; ctx.shadowColor = "#ff5e7e"; }
+        ctx.strokeStyle = STR_COL; ctx.lineWidth = Math.max(1.5, 3.5 * c.s);
+        if (locked) { ctx.shadowBlur = 12; ctx.shadowColor = STR_COL; }
         ctx.beginPath();
         ctx.moveTo(c.x - Math.sin(a) * len, c.y - Math.cos(a) * len);
         ctx.lineTo(c.x + Math.sin(a) * len, c.y + Math.cos(a) * len);
@@ -1769,7 +1771,7 @@
   // a marker where it crosses the orb's row (the only place it can kill).
   function drawString(s) {
     const c = Math.cos(s.ang), sn = Math.sin(s.ang);
-    const COL = "#ff5e7e";
+    const COL = STR_COL;
     let alpha, width;
     if (s.phase === "fire") { alpha = 0.9; width = 3.5; }
     else if (s.phase === "charge") { alpha = 0.3 + 0.4 * (0.5 + 0.5 * Math.sin(s.t * 40)); width = 2; }

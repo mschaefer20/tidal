@@ -321,7 +321,7 @@ const api = {
     for (let i = 0; i < 3; i++) {
       const beam = new THREE.Mesh(
         strGeo,
-        new THREE.MeshBasicMaterial({ color: 0xff5e7e, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })
+        new THREE.MeshBasicMaterial({ color: 0xffa640, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })
       );
       beam.visible = false;
       scene.add(beam);

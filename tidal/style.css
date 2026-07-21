@@ -208,6 +208,16 @@ html, body {
   border-radius: 18px;
 }
 .screen.hidden { display: none; }
+/* Start From can list all 10 orbitals — scroll instead of overflowing. The
+   auto margins keep the content centered while it still fits. */
+#screen-startfrom {
+  justify-content: flex-start;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#screen-startfrom > * { flex-shrink: 0; }
+#screen-startfrom > h2 { margin-top: auto; }
+#screen-startfrom > .btn:last-child { margin-bottom: auto; }
 .screen h2 { font-size: clamp(22px, 6vw, 30px); letter-spacing: 2px; margin-bottom: 4px; }
 .screen .btn { width: min(78%, 240px); }
 

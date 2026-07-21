@@ -78,10 +78,14 @@
   const STR3_LOCK_D = 3.2;           // depth where the angle locks (earlier = more warning)
   const STR3_SPIN = 0.55;            // rad of decorative spin per depth unit while far
   const STR3_KILL = 22;              // distance from the line that kills
-  const STR3_COS_MIN = 0.55;         // locked angle avoids near-horizontal lines —
-                                     // vertical control is the weaker axis, and the
-                                     // renderer's y-squash makes pixel-space angles
-                                     // LOOK more horizontal than they play
+  const STR3_COS_MIN = 0.8;          // locked angle stays within ~37° of vertical.
+                                     // A flat line through the center can only be
+                                     // dodged VERTICALLY — the axis the player barely
+                                     // controls — so it can be flat-out impossible if
+                                     // you're lined up with it. High cutoff keeps x
+                                     // movement effective (≥80%) against every beam;
+                                     // the renderer's y-squash also makes angles look
+                                     // flatter than they play.
 
   const BAR_SPACING = 230;           // vertical distance between barriers
 

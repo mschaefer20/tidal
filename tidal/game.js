@@ -304,11 +304,6 @@
   // Dev mode = compressed thresholds + excluded from ranking. Only reachable
   // via URL params (?dev / ?orbital / ?3d) for testing — not in the shipped UI.
   let devMode = params.has("dev") || DEV_START_3D || DEV_START_ORBITAL > 0;
-  // Device dev shortcut (no URL bar on the phone): 5 quick taps on the title
-  // logo toggle this. It opens Start From for EVERY orbital at real
-  // thresholds/speed, but the runs are unranked — no Game Center submit, no
-  // best-score recording, no persistent unlocks.
-  let devUnlock = false;
   // Highest orbital the player has reached — unlocks "Start From" (persisted).
   const UNLOCK_KEY = "tidal-unlocked";
   let unlocked = Math.max(1, Math.min(ORBITALS.length, Number(localStorage.getItem(UNLOCK_KEY) || 1)));
@@ -379,7 +374,7 @@
     orbital = n;
     orbitalStartScore = score;   // speed ramp resets at the start of each orbital
     diffFloor = 0;               // (a continue re-raises this afterward)
-    if (!devMode && !devUnlock) setUnlocked(n);   // dev runs don't mutate real progression
+    if (!devMode) setUnlocked(n);   // dev runs don't mutate real progression
     mode = ORBITALS[n - 1].dim;
     flash = settings.reduceMotion ? 0.25 : 1;
     countdown = COUNTDOWN_TIME;   // wait + countdown before the new orbital begins
@@ -1302,15 +1297,12 @@
       ctx.globalAlpha = 1;
     }
 
-    // dev indicators (slow-motion / unranked logo-tap mode)
-    if (timeScale === SPEED_DEV || devUnlock) {
-      const tags = [];
-      if (timeScale === SPEED_DEV) tags.push("20% speed");
-      if (devUnlock) tags.push("unranked");
+    // dev slow-motion indicator
+    if (timeScale === SPEED_DEV) {
       ctx.fillStyle = "#ffd84d";
       ctx.font = "bold 13px system-ui, sans-serif";
       ctx.textAlign = "left";
-      ctx.fillText("DEV · " + tags.join(" · "), 12, 22);
+      ctx.fillText("DEV · 20% speed", 12, 22);
     }
   }
 
@@ -1925,7 +1917,7 @@
     overlay.classList.add("hidden");
     hideScreens();
     // Record best now (running max) so the death screen can show "New Best!".
-    const newBest = !devMode && !devUnlock && score > best;
+    const newBest = !devMode && score > best;
     if (newBest) {
       best = score;
       localStorage.setItem(BEST_KEY, String(best));
@@ -1976,7 +1968,7 @@
 
   // The run has truly ended (submit to the leaderboard when it's live).
   function finalizeRun() {
-    if (!devMode && !devUnlock && window.TidalGC) TidalGC.submit(score);
+    if (!devMode && window.TidalGC) TidalGC.submit(score);
   }
 
   // ---- Menu / screen management -------------------------------------------
@@ -2051,26 +2043,6 @@
   menuBtn.addEventListener("click", (e) => { e.stopPropagation(); goMenu(); });
   pauseBtn.addEventListener("click", (e) => { e.stopPropagation(); pauseGame(); });
 
-  // Dev shortcut: 5 quick taps on the title logo toggle unranked dev mode
-  // (Start From lists every orbital). Another 5 taps turn it back off.
-  {
-    let logoTaps = 0, logoTapT = 0;
-    const logo = document.getElementById("title-logo");
-    if (logo) logo.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const now = performance.now();
-      if (now - logoTapT > 2000) logoTaps = 0;   // taps must come quickly
-      logoTapT = now;
-      if (++logoTaps < 5) return;
-      logoTaps = 0;
-      devUnlock = !devUnlock;
-      buzz("medium"); sfx(devUnlock ? "shift" : "flip");
-      const sf = document.getElementById("btn-startfrom");
-      if (sf) sf.textContent = devUnlock ? "Start From · DEV" : "Start From";
-      refreshCoinsUI();                          // re-evaluates Start From visibility
-    });
-  }
-
   // Title / How-to / Settings navigation
   document.querySelectorAll("[data-action]").forEach((b) => {
     b.addEventListener("click", (e) => {
@@ -2128,7 +2100,7 @@
     const prem = window.TidalStore && TidalStore.hasPremium();
     setText("title-coins", coinsNow() + " coins" + (prem ? " · 2×" : ""));
     const sf = document.getElementById("btn-startfrom");
-    if (sf) sf.hidden = !devUnlock && unlocked < 2;   // unlocks after you first reach orbital 2 (score 100)
+    if (sf) sf.hidden = unlocked < 2;        // unlocks after you first reach orbital 2 (score 100)
   }
 
   function refreshShop() {
@@ -2170,8 +2142,7 @@
     const list = document.getElementById("startfrom-list");
     if (list) {
       list.innerHTML = "";
-      const top = devUnlock ? ORBITALS.length : unlocked;
-      for (let n = 1; n <= top; n++) {
+      for (let n = 1; n <= unlocked; n++) {
         const btn = document.createElement("button");
         btn.className = "btn";
         btn.textContent = ORBITAL_LABEL[n];

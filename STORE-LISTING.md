@@ -40,6 +40,25 @@ Simple to learn. Hard to put down.
 ## What's New (version 1.0.0)
 `First release. Tap to flip gravity, survive, and break into 3D at 100. Thanks for playing!`
 
+## What's New (version 1.1 — the wave-two update)
+```
+The world just doubled: five new Orbitals await beyond the black hole.
+
+• Wormholes — linked portals that fling you across the field. Learn to
+  read them; later, they're all that can save you.
+• Cosmic strings, a lethal laser tunnel, and a supernova finale —
+  Orbitals VI through X, each with its own music track.
+• Game Center is here: compete on the global leaderboard.
+• The black hole got hungry — Orbital V now scores for feeding it
+  asteroids, not for waiting around.
+• Died deep into a journey? The death screen can now restart you right
+  where your run began.
+• New in the Shop: Tidal Premium (2× coins forever) and coin packs.
+• Clearer audio on the iPhone speaker, plus dozens of small fixes.
+
+Reach 500 to cross the event horizon. Good luck.
+```
+
 ## Category
 Primary: **Games** → **Arcade**. Secondary: **Action**.
 

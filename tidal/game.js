@@ -1924,6 +1924,10 @@
       bestEl.textContent = best;
     }
     setText("continue-score", newBest ? `Score ${score} — New Best!` : `Score ${score} · Best ${best}`);
+    // Players who haven't reached orbital 2 yet get a nudge that the game
+    // transforms at 100 — the reveal is the hook, so hint, don't spoil.
+    const tease = document.getElementById("continue-tease");
+    if (tease) tease.hidden = unlocked >= 2 || devMode;
     showContinueConfirm(false);
     refreshContinue();
     screens.continue.classList.remove("hidden");

@@ -22,7 +22,16 @@
       && window.Capacitor.Plugins.CapacitorGameConnect;
   }
 
-  function available() { return ENABLED && !!plugin(); }
+  // Leaderboards are iOS-only in v1: the plugin also has a Play Games side,
+  // but Android would need Play Games Services configured in Play Console.
+  // The plugin is excluded from Android builds (capacitor.config.json
+  // android.includePlugins); this platform gate is belt-and-braces.
+  function isIOS() {
+    return !window.Capacitor || !window.Capacitor.getPlatform
+      || window.Capacitor.getPlatform() !== "android";
+  }
+
+  function available() { return ENABLED && isIOS() && !!plugin(); }
 
   async function signIn() {
     if (!ENABLED) return false;

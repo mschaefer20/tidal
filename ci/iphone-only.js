@@ -4,6 +4,7 @@
 
 const fs = require("fs");
 const xcode = require("xcode");
+const { MARKETING_VERSION } = require("./version");
 
 const PBXPROJ = "ios/App/App.xcodeproj/project.pbxproj";
 
@@ -11,9 +12,9 @@ try {
   const proj = xcode.project(PBXPROJ);
   proj.parseSync();
   proj.updateBuildProperty("TARGETED_DEVICE_FAMILY", '"1"');   // 1 = iPhone only
-  proj.updateBuildProperty("MARKETING_VERSION", "1.1");        // v1.1 (1.0 train is closed)
+  proj.updateBuildProperty("MARKETING_VERSION", MARKETING_VERSION);
   fs.writeFileSync(PBXPROJ, proj.writeSync());
-  console.log("Set TARGETED_DEVICE_FAMILY = 1 (iPhone only) and MARKETING_VERSION = 1.1.");
+  console.log(`Set TARGETED_DEVICE_FAMILY = 1 (iPhone only) and MARKETING_VERSION = ${MARKETING_VERSION}.`);
 } catch (e) {
   console.warn("iphone-only: could not patch project —", e.message);
 }

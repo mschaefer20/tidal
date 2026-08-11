@@ -95,3 +95,111 @@ workflows:
         # TestFlight test info in App Store Connect, then set this to true.
         submit_to_testflight: false
         # submit_to_app_store: false   # flip to true once you're ready to release
+
+  # ---------------------------------------------------------------------------
+  # Combined release: ONE run -> signed IPA (auto-uploaded to App Store
+  # Connect, as before) + signed Android .aab/.apk artifacts (download the
+  # .aab and hand it to the Play publisher). Both artifacts come from the
+  # same commit and share $BUILD_NUMBER (iOS build number == Android
+  # versionCode), so the stores stay in lockstep. The Android half builds
+  # FIRST: if it fails, no IPA is produced or uploaded — both or neither.
+  #
+  # Extra one-time setup: a "googleplay" variable group in the Codemagic UI:
+  #   CM_KEYSTORE          = base64 of tidal-upload.jks (the Play upload key)
+  #   CM_KEYSTORE_PASSWORD = keystore password
+  #   CM_KEY_ALIAS         = key alias ("tidal")
+  #   CM_KEY_PASSWORD      = key password
+  # Mark all Secure. Keep tidal-upload.jks safely backed up — after the first
+  # Play upload it becomes the permanent upload key for the app.
+  release-tidal:
+    name: Tidal iOS + Android
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+    environment:
+      groups:
+        - appstore
+        - googleplay
+      vars:
+        BUNDLE_ID: "com.mschaefer20.tidal"
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+      node: 20
+      xcode: latest
+      cocoapods: default
+      java: 17
+    scripts:
+      - name: Install npm dependencies
+        script: npm install
+      - name: Add native platforms (regenerated every build)
+        script: |
+          if [ ! -d "ios" ]; then npx cap add ios; fi
+          if [ ! -d "android" ]; then npx cap add android; fi
+      - name: Sync web assets + plugins into both native projects
+        script: npx cap sync
+      - name: Make the app iPhone-only (no iPad)
+        script: node ci/iphone-only.js
+      - name: Enable Game Center capability
+        script: node ci/enable-gamecenter.js
+      - name: Configure Info.plist (compliance + portrait lock)
+        script: |
+          PLIST=ios/App/App/Info.plist
+          MV=$(node -p "require('./ci/version').MARKETING_VERSION")
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $MV" "$PLIST" \
+            || /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $MV" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST" \
+            || /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIRequiresFullScreen bool true" "$PLIST" \
+            || /usr/libexec/PlistBuddy -c "Set :UIRequiresFullScreen true" "$PLIST"
+      - name: Configure audio session (play through the mute switch)
+        script: node ci/configure-audio.js
+      - name: Generate app icons & splash (both platforms)
+        script: |
+          npx capacitor-assets generate --ios || true
+          npx capacitor-assets generate --android || true
+      - name: Prepare Android signing (upload keystore from env)
+        script: |
+          echo "$CM_KEYSTORE" | base64 --decode > /tmp/tidal-upload.jks
+          echo "CM_KEYSTORE_PATH=/tmp/tidal-upload.jks" >> $CM_ENV
+      - name: Configure Android project (version, portrait, signing)
+        script: node ci/android-config.js
+      - name: Build signed Android bundle + APK
+        script: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+          cd android
+          ./gradlew bundleRelease assembleRelease
+      - name: Install CocoaPods
+        script: cd ios/App && pod install
+      - name: Fetch signing files & set up keychain (uses the API key)
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --certificate-key="@env:CERTIFICATE_PRIVATE_KEY" \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
+      - name: Set iOS build number (matches Android versionCode)
+        script: |
+          cd ios/App
+          agvtool new-version -all "$BUILD_NUMBER"
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - android/app/build/outputs/bundle/release/*.aab
+      - android/app/build/outputs/apk/release/*.apk
+      - android/app/build/outputs/mapping/release/mapping.txt
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: false

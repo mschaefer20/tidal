@@ -7,6 +7,15 @@
     "backgroundColor": "#05060f",
     "contentInset": "never"
   },
+  "android": {
+    "backgroundColor": "#05060f",
+    "includePlugins": [
+      "@capacitor/haptics",
+      "@capacitor/splash-screen",
+      "@capacitor/status-bar",
+      "@revenuecat/purchases-capacitor"
+    ]
+  },
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 1200,

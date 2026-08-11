@@ -7,11 +7,13 @@
     "serve": "http-server tidal -p 8123 -c-1",
     "sync": "cap sync",
     "ios": "cap open ios",
+    "android": "cap open android",
     "assets": "capacitor-assets generate --ios"
   },
   "dependencies": {
     "@capacitor/core": "^6.1.2",
     "@capacitor/ios": "^6.1.2",
+    "@capacitor/android": "^6.1.2",
     "@capacitor/haptics": "^6.0.2",
     "@capacitor/splash-screen": "^6.0.3",
     "@capacitor/status-bar": "^6.0.2",

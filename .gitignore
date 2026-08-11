@@ -9,6 +9,14 @@ DerivedData/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
 
+# Capacitor / Android (platform dir is regenerated per build, like ios/)
+android/
+*.jks
+*.keystore
+tidal-upload.jks*
+key.properties
+play-service-account*.json
+
 # macOS / misc
 .DS_Store
 *.log

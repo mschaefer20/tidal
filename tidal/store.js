@@ -18,8 +18,15 @@
   // rewarded ad-unit id once the AdMob account/app/unit exist.
   const AD_REWARDED_ID = "ca-app-pub-3940256099942544/1712485313";
 
-  // ---- MUST MATCH App Store Connect + RevenueCat -------------------------
-  const RC_API_KEY = "appl_VqkYGcKDGCJkcCEUOmCJPZydJYW";
+  // ---- MUST MATCH the stores + RevenueCat --------------------------------
+  // RevenueCat issues one API key per store platform; pick at runtime.
+  // Product ids (below) are the SAME in App Store Connect and Play Console.
+  const RC_API_KEY_IOS = "appl_VqkYGcKDGCJkcCEUOmCJPZydJYW";
+  const RC_API_KEY_ANDROID = "goog_REPLACE_WITH_PLAY_KEY";   // paste from RevenueCat → Play app
+  const RC_API_KEY =
+    window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === "android"
+      ? RC_API_KEY_ANDROID
+      : RC_API_KEY_IOS;
   const P_PREMIUM = "tidal_premium";                 // non-consumable
   const ENTITLEMENT = "premium";                     // RevenueCat entitlement id
   const COIN_PACKS = { 200: "tidal_coins_200", 500: "tidal_coins_500", 800: "tidal_coins_800" }; // consumables
@@ -130,10 +137,12 @@
     },
   };
 
-  // Configure RevenueCat on device once the plugin is available.
+  // Configure RevenueCat on device once the plugin is available. A platform
+  // whose key hasn't been filled in yet is left unconfigured — purchases then
+  // fail with a visible store error instead of misbehaving.
   document.addEventListener("DOMContentLoaded", async () => {
     const p = rc();
-    if (!p) return;
+    if (!p || RC_API_KEY.includes("REPLACE")) return;
     try {
       await p.configure({ apiKey: RC_API_KEY });
       const res = await p.getCustomerInfo();

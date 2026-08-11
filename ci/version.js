@@ -4,4 +4,4 @@
    moves both stores together. Build number / versionCode come from the CI's
    $BUILD_NUMBER, shared by both platforms within a combined build. */
 
-module.exports = { MARKETING_VERSION: "1.1" };
+module.exports = { MARKETING_VERSION: "1.1.1" };

@@ -58,25 +58,26 @@ Keyboard (browser only): Space/Enter flip, Esc/P pause.
   mis-parses) — commit via the Bash tool or a heredoc.
 
 ## Status
-- **v1.0 — LIVE** on the App Store, 148 countries (EU excluded pending DSA trader
-  status), iPhone-only.
-- **v1.1 — SUBMITTED, in App Review (2026-07-19).** Final build uploaded; build +
-  3 IAPs + `tidal_high_scores` leaderboard attached to the 1.1 version page and
-  submitted together. On approval the leaderboard and IAPs go live. What shipped:
-  - ✅ **Continue UX** (v1.0.1 items): coin-continue confirm step; death screen has
-    Continue / Start Over / Menu / Leaderboard (no more Give-Up→Play-Again).
-  - ✅ **Game Center** code + CI done (`ENABLED=true`). Needs: GC enabled on the App
-    ID, leaderboard `tidal_high_scores` created + localized + attached to the v1.1
-    version. Goes Live when v1.1 is approved. Works in sandbox now.
-  - ✅ **IAP (RevenueCat)** DONE + sandbox-verified on device (2026-07-08):
-    key wired in `store.js`, products live in App Store Connect (Ready to
-    Submit, $3.99/$0.99/$1.99) + RevenueCat, entitlement `premium` attached to
-    `tidal_premium`, Paid Apps Agreement active. Shop shows owned state +
-    surfaces store errors; store dispatches `tidal-premium-change` on async
-    entitlement sync. IAPs must be attached to the 1.1 version page at submit.
-  - ➡️ **Rewarded ads (AdMob)** — deferred to v1.2. `watchAd()` in `store.js` is
-    still a stub; the Watch-Ad continue button exists but is hidden in the UI.
-    Needs AdMob account + `@capacitor-community/admob` + privacy labels.
+- **v1.1 (wave two) — APPROVED + LIVE on the App Store (2026-08).** Ten
+  orbitals, Game Center leaderboard, RevenueCat IAP ($3.99 premium + 3 coin
+  packs), continue-UX rework. iPhone-only, portrait. EU still excluded
+  pending DSA trader-status completion.
+- **v1.1.1 — leaderboard resubmission in progress.** `ci/version.js` bumped
+  to 1.1.1 (single source of truth; both Codemagic workflows read it).
+- **GOOGLE PLAY (2026-08-11, commit `aaf9cae`) — Android platform added.**
+  Combined Codemagic workflow **`release-tidal`** builds the signed Android
+  `.aab`/`.apk` first, then the IPA (auto-uploaded to ASC) — one run, one
+  commit, both stores; shared `$BUILD_NUMBER`. Publishing happens on a
+  colleague's Play account (manual `.aab` handoff). **Waiting on:** the
+  colleague's Play Console setup (app, listing, merchant profile, the 4 IAP
+  products) + RevenueCat Play app → then paste the `goog_` key into
+  `RC_API_KEY_ANDROID` in `tidal/store.js` (currently a safe placeholder)
+  and rebuild. Full checklist: **`BUILD-ANDROID.md`**. Upload keystore
+  `tidal-upload.jks` (repo root, gitignored) — keep it + its password backed
+  up. Leaderboards are iOS-only on Android v1 (plugin excluded via
+  `android.includePlugins`).
+- ➡️ **Rewarded ads (AdMob)** — still deferred. `watchAd()` stub; button
+  hidden. Needs AdMob account + `@capacitor-community/admob` + privacy labels.
 
 ## Known issues / TODO
 - ✅ Music-on-speaker FIXED (arp up an octave, mid harmonic carries the bass) —

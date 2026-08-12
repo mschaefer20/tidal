@@ -75,7 +75,10 @@ huge versionCode.
 Publishing happens on the colleague's Play developer account (14-day closed
 testing requirement already satisfied there).
 
-1. **Create the app**: package name `com.mschaefer20.tidal`, name
+1. **Create the app**: package name `io.github.mschaefer20.tidal` (already
+   created on the publisher's account — a Play package name is permanent, so
+   CI patches the Android `applicationId` to this in `ci/android-config.js`;
+   it intentionally differs from the iOS bundle id), name
    "Tidal Orbit". Store listing copy is in `STORE-LISTING.md` (description,
    keywords → Play tags, screenshots; Play also wants a 512×512 icon — use
    `resources/icon.png` scaled — and a 1024×500 feature graphic, to be made).
@@ -92,7 +95,7 @@ testing requirement already satisfied there).
    - `tidal_coins_200` — $0.99 · `tidal_coins_500` — $1.99 · `tidal_coins_800` — $2.99
    (match the live App Store prices; adjust if those differ)
 6. **RevenueCat**: in the existing Tidal project add a **Play Store app**
-   (package `com.mschaefer20.tidal`), upload Play **service credentials
+   (package `io.github.mschaefer20.tidal`), upload Play **service credentials
    JSON** (RevenueCat docs walk through creating it in Google Cloud — needed
    for purchase validation), attach the `premium` entitlement to
    `tidal_premium`, add the coin products. Then send the `goog_` API key back

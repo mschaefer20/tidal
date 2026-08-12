@@ -2,6 +2,13 @@
    Like the iOS patchers, this re-applies everything after every `cap sync` —
    the android/ dir is regenerated per build and never hand-edited.
 
+   - applicationId <- APPLICATION_ID below. The Play app was created on the
+                     publisher's account as io.github.mschaefer20.tidal (a
+                     Play package name is permanent), so the Android identity
+                     differs from the iOS bundle id / capacitor appId
+                     (com.mschaefer20.tidal) BY DESIGN. Only applicationId is
+                     patched; the Gradle namespace / generated Java package
+                     keep the capacitor appId, which is fine.
    - versionName  <- ci/version.js MARKETING_VERSION (same as iOS)
    - versionCode  <- $BUILD_NUMBER (Codemagic's counter; shared with the iOS
                      build number in the combined workflow)
@@ -13,6 +20,8 @@
 const fs = require("fs");
 const { MARKETING_VERSION } = require("./version");
 
+const APPLICATION_ID = "io.github.mschaefer20.tidal";
+
 const GRADLE = "android/app/build.gradle";
 const MANIFEST = "android/app/src/main/AndroidManifest.xml";
 
@@ -20,6 +29,7 @@ function patchGradle() {
   let g = fs.readFileSync(GRADLE, "utf8");
 
   const code = Number(process.env.BUILD_NUMBER || process.env.PROJECT_BUILD_NUMBER || 1);
+  g = g.replace(/applicationId\s+"[^"]*"/, `applicationId "${APPLICATION_ID}"`);
   g = g.replace(/versionCode\s+\d+/, `versionCode ${code}`);
   g = g.replace(/versionName\s+"[^"]*"/, `versionName "${MARKETING_VERSION}"`);
 
@@ -39,7 +49,7 @@ function patchGradle() {
   }
 
   fs.writeFileSync(GRADLE, g);
-  console.log(`android-config: versionName ${MARKETING_VERSION}, versionCode ${code}, signing ${signed ? "release keystore" : "SKIPPED (no CM_KEYSTORE_PATH)"}.`);
+  console.log(`android-config: applicationId ${APPLICATION_ID}, versionName ${MARKETING_VERSION}, versionCode ${code}, signing ${signed ? "release keystore" : "SKIPPED (no CM_KEYSTORE_PATH)"}.`);
 }
 
 function patchManifest() {

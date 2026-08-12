@@ -125,7 +125,9 @@ workflows:
         - appstore
         - googleplay
       vars:
-        BUNDLE_ID: "com.mschaefer20.tidal"
+        BUNDLE_ID: "com.mschaefer20.tidal"   # iOS only — the Android package
+        # name is io.github.mschaefer20.tidal, patched by ci/android-config.js
+        # (the publisher's Play app was created under that id; it's permanent).
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
         # Play track the .aab is pushed to on every run. "internal" is safe

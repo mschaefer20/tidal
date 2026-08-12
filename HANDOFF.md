@@ -71,7 +71,10 @@ Keyboard (browser only): Space/Enter flip, Esc/P pause.
   the IPA (auto-uploaded to ASC) — one run, one commit, both stores; shared
   `$BUILD_NUMBER`. **Auto-publish to Play added 2026-08-12:** the workflow
   now uploads the `.aab` to the publisher's Play track (`GOOGLE_PLAY_TRACK`,
-  default `internal`) via a `google_play` publishing block. **Waiting on:**
+  default `internal`) via a `google_play` publishing block. The Play package
+  name is **`io.github.mschaefer20.tidal`** (the colleague's existing Play
+  app — patched in via `ci/android-config.js`; intentionally differs from
+  the iOS bundle id). **Waiting on:**
   (1) the colleague's Play service-account JSON →
   `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` in the Codemagic `googleplay` group
   (steps in `BUILD-ANDROID.md`); (2) RevenueCat Play app → paste the `goog_`

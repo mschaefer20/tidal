@@ -11,8 +11,9 @@ The Codemagic workflow **`release-tidal`** ("Tidal iOS + Android",
 `codemagic.yaml`) produces, from a single run on one commit:
 
 - the signed **IPA**, auto-uploaded to App Store Connect (unchanged behavior), and
-- the signed **`.aab`** (Android App Bundle) + a sideloadable **`.apk`**, as
-  downloadable build artifacts.
+- the signed **`.aab`** (Android App Bundle), **auto-uploaded to the Play
+  Console track set by `GOOGLE_PLAY_TRACK`** (default `internal`), plus a
+  sideloadable **`.apk`** as a downloadable build artifact.
 
 iOS build number and Android `versionCode` are both `$BUILD_NUMBER`; the
 store-facing version for BOTH platforms comes from `ci/version.js`
@@ -35,14 +36,39 @@ stores can't drift. The old `ios-tidal` workflow remains for iOS-only builds.
    checklist below), paste the `goog_...` key into `RC_API_KEY_ANDROID` in
    `tidal/store.js`. Until then, Android builds run with purchases
    unconfigured (shop shows store errors; nothing is granted).
+4. **Play service account (enables auto-publish)** — created on the
+   PUBLISHER'S (colleague's) side, since the app lives on their Play account:
+   1. In [Google Cloud Console](https://console.cloud.google.com): create (or
+      pick) a project → **APIs & Services → enable "Google Play Android
+      Developer API"** → **IAM & Admin → Service Accounts → Create** (name
+      e.g. `codemagic-publisher`, no roles needed) → on the account, **Keys →
+      Add key → JSON** and download the key file.
+   2. In [Play Console](https://play.google.com/console) → **Users and
+      permissions → Invite new users** → the service account's
+      `...@...iam.gserviceaccount.com` email → grant app-level access to
+      Tidal Orbit with **"Release to testing tracks"** (add **"Release
+      apps to production"** only when you want CI able to touch
+      production) → send the invite (it activates immediately for service
+      accounts).
+   3. Send the JSON file to the repo owner → paste its FULL contents into the
+      Codemagic `googleplay` group as `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS`
+      (Secure). Never commit it (`play-service-account*.json` is gitignored).
 
 ## Releasing
 
 1. Trigger `release-tidal` in Codemagic (manual, from `main`).
 2. IPA lands in App Store Connect automatically, as always.
-3. Download the `.aab` artifact and send it to the Play publisher.
+3. The `.aab` lands on the Play track named by `GOOGLE_PLAY_TRACK`
+   (default `internal`) on the publisher's account automatically. Promoting
+   it to closed testing / production is a button in Play Console — same
+   division of labor as iOS, where submitting to App Review is manual.
 4. The `.apk` artifact can be sideloaded on any Android device for testing
    (enable "install unknown apps").
+
+NOTE: Play rejects an `.aab` whose `versionCode` isn't higher than every
+previously uploaded one. Codemagic's `$BUILD_NUMBER` only counts up, so this
+only bites if the publisher ever uploads a bundle from somewhere else with a
+huge versionCode.
 
 ## Play Console checklist (publisher's side)
 

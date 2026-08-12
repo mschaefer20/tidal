@@ -64,18 +64,22 @@ Keyboard (browser only): Space/Enter flip, Esc/P pause.
   pending DSA trader-status completion.
 - **v1.1.1 — leaderboard resubmission in progress.** `ci/version.js` bumped
   to 1.1.1 (single source of truth; both Codemagic workflows read it).
-- **GOOGLE PLAY (2026-08-11, commit `aaf9cae`) — Android platform added.**
-  Combined Codemagic workflow **`release-tidal`** builds the signed Android
-  `.aab`/`.apk` first, then the IPA (auto-uploaded to ASC) — one run, one
-  commit, both stores; shared `$BUILD_NUMBER`. Publishing happens on a
-  colleague's Play account (manual `.aab` handoff). **Waiting on:** the
-  colleague's Play Console setup (app, listing, merchant profile, the 4 IAP
-  products) + RevenueCat Play app → then paste the `goog_` key into
-  `RC_API_KEY_ANDROID` in `tidal/store.js` (currently a safe placeholder)
-  and rebuild. Full checklist: **`BUILD-ANDROID.md`**. Upload keystore
-  `tidal-upload.jks` (repo root, gitignored) — keep it + its password backed
-  up. Leaderboards are iOS-only on Android v1 (plugin excluded via
-  `android.includePlugins`).
+- **GOOGLE PLAY — live in testing on the colleague's Play account; the
+  14-day closed-testing period has PASSED (as of 2026-08-12)**, so the app
+  is eligible to apply for production. Combined Codemagic workflow
+  **`release-tidal`** builds the signed Android `.aab`/`.apk` first, then
+  the IPA (auto-uploaded to ASC) — one run, one commit, both stores; shared
+  `$BUILD_NUMBER`. **Auto-publish to Play added 2026-08-12:** the workflow
+  now uploads the `.aab` to the publisher's Play track (`GOOGLE_PLAY_TRACK`,
+  default `internal`) via a `google_play` publishing block. **Waiting on:**
+  (1) the colleague's Play service-account JSON →
+  `GCLOUD_SERVICE_ACCOUNT_CREDENTIALS` in the Codemagic `googleplay` group
+  (steps in `BUILD-ANDROID.md`); (2) RevenueCat Play app → paste the `goog_`
+  key into `RC_API_KEY_ANDROID` in `tidal/store.js` (still a placeholder —
+  Android IAP is dead until then). Full checklist: **`BUILD-ANDROID.md`**.
+  Upload keystore `tidal-upload.jks` (repo root, gitignored) — keep it + its
+  password backed up. Leaderboards are iOS-only on Android v1 (plugin
+  excluded via `android.includePlugins`).
 - ➡️ **Rewarded ads (AdMob)** — still deferred. `watchAd()` stub; button
   hidden. Needs AdMob account + `@capacitor-community/admob` + privacy labels.
 

@@ -99,17 +99,21 @@ workflows:
 
   # ---------------------------------------------------------------------------
   # Combined release: ONE run -> signed IPA (auto-uploaded to App Store
-  # Connect, as before) + signed Android .aab/.apk artifacts (download the
-  # .aab and hand it to the Play publisher). Both artifacts come from the
-  # same commit and share $BUILD_NUMBER (iOS build number == Android
-  # versionCode), so the stores stay in lockstep. The Android half builds
-  # FIRST: if it fails, no IPA is produced or uploaded — both or neither.
+  # Connect, as before) + signed Android .aab auto-uploaded to the Google
+  # Play track below (the publisher promotes it in Play Console). Both
+  # artifacts come from the same commit and share $BUILD_NUMBER (iOS build
+  # number == Android versionCode), so the stores stay in lockstep. The
+  # Android half builds FIRST: if it fails, no IPA is produced or uploaded —
+  # both or neither.
   #
   # Extra one-time setup: a "googleplay" variable group in the Codemagic UI:
   #   CM_KEYSTORE          = base64 of tidal-upload.jks (the Play upload key)
   #   CM_KEYSTORE_PASSWORD = keystore password
   #   CM_KEY_ALIAS         = key alias ("tidal")
   #   CM_KEY_PASSWORD      = key password
+  #   GCLOUD_SERVICE_ACCOUNT_CREDENTIALS = full JSON key of a Play service
+  #     account with release access to the app (created on the publisher's
+  #     account — see BUILD-ANDROID.md "Service account" section)
   # Mark all Secure. Keep tidal-upload.jks safely backed up — after the first
   # Play upload it becomes the permanent upload key for the app.
   release-tidal:
@@ -124,6 +128,10 @@ workflows:
         BUNDLE_ID: "com.mschaefer20.tidal"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
+        # Play track the .aab is pushed to on every run. "internal" is safe
+        # (instant, up to 100 testers); switch to the closed-track name or
+        # "production" once you want releases to go further automatically.
+        GOOGLE_PLAY_TRACK: "internal"
       node: 20
       xcode: latest
       cocoapods: default
@@ -204,3 +212,10 @@ workflows:
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: false
+      # Auto-upload the .aab to the publisher's Play Console. Mirrors the iOS
+      # behavior: the build lands on the track, going further (promotion to
+      # production / rollout) stays a manual step in Play Console.
+      google_play:
+        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+        track: $GOOGLE_PLAY_TRACK
+        submit_as_draft: false

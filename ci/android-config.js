@@ -24,6 +24,35 @@ const APPLICATION_ID = "io.github.mschaefer20.tidal";
 
 const GRADLE = "android/app/build.gradle";
 const MANIFEST = "android/app/src/main/AndroidManifest.xml";
+const VARIABLES = "android/variables.gradle";
+const ROOT_GRADLE = "android/build.gradle";
+const WRAPPER = "android/gradle/wrapper/gradle-wrapper.properties";
+
+/* Google Play requires new uploads to target Android 15 (API 35) since
+   Aug 2026 ("Target SDK of artifact is too low"), but the Capacitor 6
+   template pins SDK 34 with AGP 8.2.1 / Gradle 8.2.1 — a toolchain too old
+   to compile against SDK 35. Bump all three together (AGP 8.7.x needs
+   Gradle 8.9+; both run on the CI's Java 17). */
+const TARGET_SDK = 35;
+const AGP_VERSION = "8.7.3";
+const GRADLE_VERSION = "8.11.1";
+
+function patchToolchain() {
+  let v = fs.readFileSync(VARIABLES, "utf8");
+  v = v.replace(/compileSdkVersion\s*=\s*\d+/, `compileSdkVersion = ${TARGET_SDK}`);
+  v = v.replace(/targetSdkVersion\s*=\s*\d+/, `targetSdkVersion = ${TARGET_SDK}`);
+  fs.writeFileSync(VARIABLES, v);
+
+  let r = fs.readFileSync(ROOT_GRADLE, "utf8");
+  r = r.replace(/com\.android\.tools\.build:gradle:[\d.]+/, `com.android.tools.build:gradle:${AGP_VERSION}`);
+  fs.writeFileSync(ROOT_GRADLE, r);
+
+  let w = fs.readFileSync(WRAPPER, "utf8");
+  w = w.replace(/gradle-[\d.]+-(all|bin)\.zip/, `gradle-${GRADLE_VERSION}-all.zip`);
+  fs.writeFileSync(WRAPPER, w);
+
+  console.log(`android-config: compile/target SDK ${TARGET_SDK}, AGP ${AGP_VERSION}, Gradle ${GRADLE_VERSION}.`);
+}
 
 function patchGradle() {
   let g = fs.readFileSync(GRADLE, "utf8");
@@ -64,6 +93,7 @@ function patchManifest() {
 }
 
 try {
+  patchToolchain();
   patchGradle();
   patchManifest();
 } catch (e) {

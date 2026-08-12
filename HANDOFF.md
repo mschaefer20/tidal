@@ -80,9 +80,12 @@ Keyboard (browser only): Space/Enter flip, Esc/P pause.
   (steps in `BUILD-ANDROID.md`); (2) RevenueCat Play app → paste the `goog_`
   key into `RC_API_KEY_ANDROID` in `tidal/store.js` (still a placeholder —
   Android IAP is dead until then). Full checklist: **`BUILD-ANDROID.md`**.
-  Upload keystore `tidal-upload.jks` (repo root, gitignored) — keep it + its
-  password backed up. Leaderboards are iOS-only on Android v1 (plugin
-  excluded via `android.includePlugins`).
+  Upload keystore: `play-upload.jks` (repo root, gitignored) — the
+  PUBLISHER'S keystore (PKCS12, alias `tidal-upload`), received 2026-08-12;
+  Play is locked to it. Keep it + its password backed up. The old
+  self-generated `tidal-upload.jks` is obsolete (never uploaded to Play).
+  Leaderboards are iOS-only on Android v1 (plugin excluded via
+  `android.includePlugins`).
 - ➡️ **Rewarded ads (AdMob)** — still deferred. `watchAd()` stub; button
   hidden. Needs AdMob account + `@capacitor-community/admob` + privacy labels.
 

@@ -107,15 +107,17 @@ workflows:
   # both or neither.
   #
   # Extra one-time setup: a "googleplay" variable group in the Codemagic UI:
-  #   CM_KEYSTORE          = base64 of tidal-upload.jks (the Play upload key)
-  #   CM_KEYSTORE_PASSWORD = keystore password
-  #   CM_KEY_ALIAS         = key alias ("tidal")
-  #   CM_KEY_PASSWORD      = key password
+  #   CM_KEYSTORE          = base64 of play-upload.jks — the PUBLISHER'S
+  #     upload keystore (PKCS12; Play locked the app to it on first upload)
+  #   CM_KEYSTORE_PASSWORD = its password
+  #   CM_KEY_ALIAS         = "tidal-upload"
+  #   CM_KEY_PASSWORD      = same as CM_KEYSTORE_PASSWORD
   #   GCLOUD_SERVICE_ACCOUNT_CREDENTIALS = full JSON key of a Play service
   #     account with release access to the app (created on the publisher's
   #     account — see BUILD-ANDROID.md "Service account" section)
-  # Mark all Secure. Keep tidal-upload.jks safely backed up — after the first
-  # Play upload it becomes the permanent upload key for the app.
+  # Mark all Secure. Keep play-upload.jks + its password safely backed up —
+  # it is the app's permanent upload key. (The locally generated
+  # tidal-upload.jks was never used on Play and is obsolete.)
   release-tidal:
     name: Tidal iOS + Android
     instance_type: mac_mini_m2

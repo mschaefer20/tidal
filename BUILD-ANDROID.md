@@ -23,10 +23,15 @@ stores can't drift. The old `ios-tidal` workflow remains for iOS-only builds.
 
 ## One-time setup (already done unless noted)
 
-1. **Upload keystore** — `tidal-upload.jks` at the repo root (gitignored).
-   Generated 2026-08-11, alias `tidal`, RSA 2048, valid ~27 years.
-   **Back this file + its password up somewhere safe** (password manager).
-   After the first Play upload it becomes the app's permanent upload key.
+1. **Upload keystore** — `play-upload.jks` at the repo root (gitignored).
+   This is the PUBLISHER'S keystore (received 2026-08-12): PKCS12, alias
+   `tidal-upload`, key password = store password, upload certificate
+   SHA1 `A4:32:2B:5E:16:69:0D:D2:FB:6B:CD:E4:69:E2:34:3C:E5:88:F9:C2`,
+   cert valid 2026-07-17 → 2053. Play locked the app's upload key to it
+   when the publisher made the first test upload, so all future `.aab`s
+   must be signed with it. **Back this file + its password up somewhere
+   safe** (password manager). The locally generated `tidal-upload.jks`
+   (2026-08-11, alias `tidal`) was never used on Play and is obsolete.
 2. **Codemagic variable group `googleplay`** (mark all Secure):
    - `CM_KEYSTORE` — contents of `tidal-upload.jks.base64.txt`
    - `CM_KEYSTORE_PASSWORD` — the keystore password

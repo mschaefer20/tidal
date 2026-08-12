@@ -30,7 +30,10 @@ workflows:
       cocoapods: default
     scripts:
       - name: Install npm dependencies
-        script: npm install
+        # Retried: sharp (via @capacitor/assets) downloads a native binary
+        # from GitHub at install time, which occasionally drops mid-transfer
+        # ("socket hang up"). A clean retry recovers it.
+        script: npm install || npm install || (sleep 30 && npm install)
       - name: Add iOS platform (if not committed)
         script: |
           if [ ! -d "ios" ]; then npx cap add ios; fi
@@ -142,7 +145,10 @@ workflows:
       java: 17
     scripts:
       - name: Install npm dependencies
-        script: npm install
+        # Retried: sharp (via @capacitor/assets) downloads a native binary
+        # from GitHub at install time, which occasionally drops mid-transfer
+        # ("socket hang up"). A clean retry recovers it.
+        script: npm install || npm install || (sleep 30 && npm install)
       - name: Add native platforms (regenerated every build)
         script: |
           if [ ! -d "ios" ]; then npx cap add ios; fi

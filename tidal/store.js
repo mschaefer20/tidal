@@ -22,7 +22,7 @@
   // RevenueCat issues one API key per store platform; pick at runtime.
   // Product ids (below) are the SAME in App Store Connect and Play Console.
   const RC_API_KEY_IOS = "appl_VqkYGcKDGCJkcCEUOmCJPZydJYW";
-  const RC_API_KEY_ANDROID = "goog_REPLACE_WITH_PLAY_KEY";   // paste from RevenueCat → Play app
+  const RC_API_KEY_ANDROID = "goog_FdLlDQYXSRwXLjsAZFhYGsgiTIC";   // RevenueCat Play app (public key)
   const RC_API_KEY =
     window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === "android"
       ? RC_API_KEY_ANDROID

@@ -61,7 +61,11 @@
   }
   async function purchaseId(id) {
     const p = rc();
-    const prods = await p.getProducts({ productIdentifiers: [id] });
+    // type is REQUIRED on Android: the plugin defaults to SUBSCRIPTION, so
+    // omitting it asks Play for a subscription with this id and gets back an
+    // empty list — every product then fails as "product not found". All four
+    // of our products are one-time purchases. Ignored on iOS.
+    const prods = await p.getProducts({ productIdentifiers: [id], type: "NON_SUBSCRIPTION" });
     const product = prods && prods.products && prods.products[0];
     if (!product) throw new Error("product not found: " + id);
     return p.purchaseStoreProduct({ product });

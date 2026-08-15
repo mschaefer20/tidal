@@ -151,7 +151,10 @@
   const SPEED_DEV = 0.20;
 
   // ---- Orbital 11 "Magnetar" tunables --------------------------------------
-  const KEY_CHANCE_MAX = 0.6;   // odds a gate is charged at full difficulty ramp
+  const KEY_EVERY_MIN = 3;      // a charged gate arrives every 3-4 gates...
+  const KEY_EVERY_MAX = 4;
+  const KEY_FIRST = 2;          // ...after a couple of free gates to settle in
+  let nextKeyGate = 0;          // countdown (in gates) to the next charged one
 
   // ---- 3D mode tunables ----------------------------------------------------
   const VP = { x: W / 2, y: ORB_Y - 30 };  // vanishing point of the tunnel
@@ -365,6 +368,7 @@
   function build2DField() {
     bars = [];
     bonuses = [];
+    if (ORB().keyed) nextKeyGate = KEY_FIRST;   // fresh cadence each entry
     for (let y = -40; y > -BAR_SPACING * 3; y -= BAR_SPACING) spawnBar(y);
   }
 
@@ -534,10 +538,17 @@
   function spawnBar(y) {
     const gap = gapWidth();
     const gapX = randomGapX(gap);
-    // Orbital 11 "Magnetar": some gaps are charged. Odds ramp with the
-    // difficulty curve so the first gates of the orbital teach for free.
-    const key = ORB().keyed && Math.random() < KEY_CHANCE_MAX * difficulty()
-      ? (Math.random() < 0.5 ? 1 : -1) : 0;
+    // Orbital 11 "Magnetar": a charged gate lands reliably every
+    // KEY_EVERY_MIN..MAX gates (after KEY_FIRST free ones at entry).
+    let key = 0;
+    if (ORB().keyed) {
+      if (nextKeyGate <= 0) {
+        key = Math.random() < 0.5 ? 1 : -1;
+        nextKeyGate = KEY_EVERY_MIN + Math.floor(Math.random() * (KEY_EVERY_MAX - KEY_EVERY_MIN + 1));
+      } else {
+        nextKeyGate--;
+      }
+    }
     bars.push({ y, gapX, gapW: gap, key, passed: false });
     // occasionally drop a bonus orb inside or near the gap
     if (Math.random() < 0.6) {

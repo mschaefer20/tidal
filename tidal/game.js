@@ -101,7 +101,7 @@
   //   binary: two oscillating gravity wells      drift: vertical orb motion (3D)
   //   wells: render wells + pull-beam (3D)       taper: tapered/varied 3D gaps
   //   arena: top-down survival arena             surges: arena gravity surges
-  //   scoreByDebris: arena scores ONLY per asteroid consumed (no survival tick)
+  //   scoreByDebris: arena has NO survival tick (score only from asteroids/coins)
   //   wh: wormholes  whChaos: drifting/hopping   whY: rings at varying heights
   //   whArena: polar arena portals               strings: rotating laser lines
   //   novas: expanding shockwave rings
@@ -110,7 +110,7 @@
     { n: 2,  dim: "3d" },                                          // 3D tunnel
     { n: 3,  dim: "2d", binary: true },                            // 2D binary
     { n: 4,  dim: "3d", drift: true, wells: true, taper: true },   // 3D binary tunnel
-    { n: 5,  dim: "2d", arena: true, surges: true, scoreByDebris: true }, // black-hole arena — points ONLY from asteroids feeding the hole (no survival tick; coins pay wallet coins)
+    { n: 5,  dim: "2d", arena: true, surges: true, scoreByDebris: true }, // black-hole arena — no survival tick; asteroids +1, coins +5 & wallet
     { n: 6,  dim: "2d", wh: true },                                // wormholes (wave two intro)
     { n: 7,  dim: "3d", wh: true, whEvery: [2.0, 3.4] },           // wormhole tunnel (sparser pairs at tunnel speed)
     { n: 8,  dim: "2d", wh: true, whChaos: true, strings: true },  // cosmic strings
@@ -1074,9 +1074,7 @@
       d.ang += d.vAng * dt;
       if (d.r <= ARENA.rEvent) {            // consumed by the hole → score
         debris.splice(i, 1);
-        // On the scoreByDebris orbital, feeding the hole is the ONLY score
-        // source, so each asteroid is worth more to keep progression moving.
-        addScore(ORB().scoreByDebris ? 2 : 1);
+        addScore(1);                        // same value on every arena orbital
         if (orbital !== fromOrbital) return;
         continue;
       }
@@ -1093,12 +1091,10 @@
       const a = ex - orb.x, b = ey - orb.y;
       if (a * a + b * b < (ORB_R + 8) * (ORB_R + 8)) {
         c.taken = true; c.respawn = 2.5;
-        if (ORB().scoreByDebris) {
-          // points come only from asteroids — coins pay out wallet coins instead
-          if (window.TidalStore) TidalStore.addCoins(TidalStore.coinMultiplier());
-        } else {
-          addScore(5);
-        }
+        // A coin is always worth both: +5 score AND a wallet coin (2 with
+        // Premium) — the same rule on every arena orbital.
+        addScore(5);
+        if (window.TidalStore) TidalStore.addCoins(TidalStore.coinMultiplier());
         sfx("coin"); buzz("light");
         if (orbital !== fromOrbital) return;
       }

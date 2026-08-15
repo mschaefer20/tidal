@@ -744,8 +744,14 @@
       // collision band
       if (b.y + BAR_TH >= ORB_Y - ORB_R && b.y <= ORB_Y + ORB_R) {
         if (!inGap(b)) return die();
-        // Magnetar: a charged gap repels the wrong-colored orb.
-        if (b.key && b.key !== gravSide) return die();
+        // Magnetar: the charge is a membrane at the door — color is checked
+        // ONCE, on first contact with the gate. After that you're through and
+        // free to flip mid-gap (at slow scroll the band lingers; holding a
+        // color the whole way through fought the pendulum itself).
+        if (b.key && !b.keyChecked) {
+          b.keyChecked = true;
+          if (b.key !== gravSide) return die();
+        }
       }
     }
 

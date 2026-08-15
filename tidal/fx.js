@@ -105,6 +105,7 @@
     8: { arp: [164.81, 196.00, 220.00, 246.94, 329.63, 246.94, 220.00, 174.61], roots: [82.41, 82.41, 87.31, 77.78], step: 140, type: "sawtooth", lp: 1500, gain: 0.09, bass: 0.26 }, // VIII — tense staccato Em, b9 menace (cosmic strings)
     9: { arp: [155.56, 207.65, 246.94, 311.13, 369.99, 311.13, 246.94, 207.65], roots: [103.83, 103.83, 123.47, 92.50], step: 130, type: "sawtooth", lp: 1700, gain: 0.09, bass: 0.24 }, // IX — hardest-driving G#m (wormhole tunnel II)
     10: { arp: [110.00, 116.54, 110.00, 103.83, 130.81, 110.00, 98.00, 116.54], roots: [55.00, 51.91, 49.00, 46.25], step: 170, type: "sawtooth", lp: 1200, gain: 0.11, bass: 0.30 }, // X — apocalyptic Am, descending bass (supernova)
+    11: { arp: [123.47, 146.83, 185.00, 246.94, 174.61, 246.94, 185.00, 146.83], roots: [61.74, 61.74, 73.42, 58.27], step: 155, type: "square", lp: 1450, gain: 0.09, bass: 0.26 }, // XI — taut metallic Bm with a tritone bite (magnetar)
   };
   function trk() { return TRACKS[currentTrack] || TRACKS[1]; }
 
@@ -180,7 +181,7 @@
     // Switch the music track to the given Orbital (restarts the loop on the
     // new key/tempo; running notes ring out so the change feels continuous).
     setOrbital(n) {
-      currentTrack = Math.max(1, Math.min(10, n || 1));
+      currentTrack = Math.max(1, Math.min(Object.keys(TRACKS).length, n || 1));
       if (musicOn && ctx) startMusic();
     },
   };

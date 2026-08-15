@@ -106,6 +106,8 @@
   //   wh: wormholes  whChaos: drifting/hopping   whY: rings at varying heights
   //   whArena: polar arena portals               strings: rotating laser lines
   //   novas: expanding shockwave rings
+  //   keyed: some gaps carry a charge (pink/cyan) — only an orb in the
+  //   matching gravity state passes; your tap steers AND re-colors you
   const ORBITALS = [
     { n: 1,  dim: "2d" },                                          // 2D pendulum
     { n: 2,  dim: "3d" },                                          // 3D tunnel
@@ -117,6 +119,7 @@
     { n: 8,  dim: "2d", wh: true, whChaos: true, strings: true },  // cosmic strings
     { n: 9,  dim: "3d", wh: true, whY: true, drift: true, wells: true, str3: true, whEvery: [1.8, 3.0] }, // cosmic strings in the tunnel (3D orbital 8)
     { n: 10, dim: "2d", arena: true, novas: true, whArena: true, whEvery: [4.0, 6.0] }, // supernova finale
+    { n: 11, dim: "2d", keyed: true },                             // magnetar: charged gaps
   ];
   // The active orbital's entry (or orbital n's, when given).
   function ORB(n) { return ORBITALS[(n || orbital) - 1] || ORBITALS[0]; }
@@ -136,7 +139,7 @@
     const base = DEPTH_SPEED_START + (DEPTH_SPEED_MAX - DEPTH_SPEED_START) * difficulty();
     return base * (orbital >= 4 ? O4_SPEED_MULT : 1);
   }
-  const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V", "ORBITAL VI", "ORBITAL VII", "ORBITAL VIII", "ORBITAL IX", "ORBITAL X"];
+  const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V", "ORBITAL VI", "ORBITAL VII", "ORBITAL VIII", "ORBITAL IX", "ORBITAL X", "ORBITAL XI"];
 
   // The orb's two gravity-state colors (left pull / right pull).
   const ORB_LEFT = "#ff5e7e", ORB_RIGHT = "#4dd2ff";
@@ -146,6 +149,9 @@
   // DEV_SLOW is a toggleable slow-motion for development/testing.
   const SPEED_NORMAL = 0.75;
   const SPEED_DEV = 0.20;
+
+  // ---- Orbital 11 "Magnetar" tunables --------------------------------------
+  const KEY_CHANCE_MAX = 0.6;   // odds a gate is charged at full difficulty ramp
 
   // ---- 3D mode tunables ----------------------------------------------------
   const VP = { x: W / 2, y: ORB_Y - 30 };  // vanishing point of the tunnel
@@ -528,7 +534,11 @@
   function spawnBar(y) {
     const gap = gapWidth();
     const gapX = randomGapX(gap);
-    bars.push({ y, gapX, gapW: gap, passed: false });
+    // Orbital 11 "Magnetar": some gaps are charged. Odds ramp with the
+    // difficulty curve so the first gates of the orbital teach for free.
+    const key = ORB().keyed && Math.random() < KEY_CHANCE_MAX * difficulty()
+      ? (Math.random() < 0.5 ? 1 : -1) : 0;
+    bars.push({ y, gapX, gapW: gap, key, passed: false });
     // occasionally drop a bonus orb inside or near the gap
     if (Math.random() < 0.6) {
       const bx = gapX + Math.random() * gap;
@@ -723,6 +733,8 @@
       // collision band
       if (b.y + BAR_TH >= ORB_Y - ORB_R && b.y <= ORB_Y + ORB_R) {
         if (!inGap(b)) return die();
+        // Magnetar: a charged gap repels the wrong-colored orb.
+        if (b.key && b.key !== gravSide) return die();
       }
     }
 
@@ -1714,6 +1726,30 @@
     // right segment
     rr(b.gapX + b.gapW, b.y, W - WALL - (b.gapX + b.gapW), BAR_TH, 6); ctx.fill();
     ctx.shadowBlur = 0;
+    // Magnetar: a charged gap glows in its required color, with a SHAPE cue
+    // for color-blind players — circles = cyan (right pull), diamonds = pink
+    // (left pull). The strip pulses gently so charge reads at a glance.
+    if (b.key) {
+      const col = b.key > 0 ? ORB_RIGHT : ORB_LEFT;
+      const yMid = b.y + BAR_TH / 2;
+      ctx.save();
+      ctx.fillStyle = col;
+      ctx.shadowBlur = 10; ctx.shadowColor = col;
+      ctx.globalAlpha = 0.16 + 0.06 * Math.sin(performance.now() / 180);
+      ctx.fillRect(b.gapX, b.y + BAR_TH * 0.2, b.gapW, BAR_TH * 0.6);
+      ctx.globalAlpha = 0.95;
+      for (const ex of [b.gapX, b.gapX + b.gapW]) {
+        if (b.key > 0) {
+          ctx.beginPath(); ctx.arc(ex, yMid, 6, 0, TAU); ctx.fill();
+        } else {
+          ctx.save();
+          ctx.translate(ex, yMid); ctx.rotate(Math.PI / 4);
+          ctx.fillRect(-5, -5, 10, 10);
+          ctx.restore();
+        }
+      }
+      ctx.restore();
+    }
   }
 
   function drawWormhole(w) {

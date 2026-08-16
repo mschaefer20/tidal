@@ -119,7 +119,7 @@
     { n: 8,  dim: "2d", wh: true, whChaos: true, strings: true },  // cosmic strings
     { n: 9,  dim: "3d", wh: true, whY: true, drift: true, wells: true, str3: true, whEvery: [1.8, 3.0] }, // cosmic strings in the tunnel (3D orbital 8)
     { n: 10, dim: "2d", arena: true, novas: true, whArena: true, whEvery: [4.0, 6.0] }, // supernova finale
-    { n: 11, dim: "2d", keyed: true },                             // magnetar: charged gaps
+    { n: 11, dim: "2d", keyed: true, keyEvery: [1, 1] },           // magnetar: every OTHER gate charged
     { n: 12, dim: "3d", keyed: true, drift: true, wells: true, taper: true }, // ion storm: charged gaps in the IV tunnel
   ];
   // The active orbital's entry (or orbital n's, when given).
@@ -151,10 +151,12 @@
   const SPEED_NORMAL = 0.75;
   const SPEED_DEV = 0.20;
 
-  // ---- Orbital 11 "Magnetar" tunables --------------------------------------
-  const KEY_EVERY_MIN = 3;      // a charged gate arrives every 3-4 gates...
+  // ---- Magnetar/Ion Storm tunables -----------------------------------------
+  // Default neutral gates BETWEEN charged ones; a `keyEvery: [min,max]` on the
+  // ORBITALS entry overrides per orbital ([1,1] = every other gate charged).
+  const KEY_EVERY_MIN = 3;
   const KEY_EVERY_MAX = 4;
-  const KEY_FIRST = 2;          // ...after a couple of free gates to settle in
+  const KEY_FIRST = 2;          // free gates at orbital entry before the first charge
   let nextKeyGate = 0;          // countdown (in gates) to the next charged one
   let repelFx = null;           // death-by-wrong-charge burst, drawn on the frozen frame
 
@@ -549,7 +551,8 @@
     if (ORB().keyed) {
       if (nextKeyGate <= 0) {
         key = Math.random() < 0.5 ? 1 : -1;
-        nextKeyGate = KEY_EVERY_MIN + Math.floor(Math.random() * (KEY_EVERY_MAX - KEY_EVERY_MIN + 1));
+        const ke = ORB().keyEvery || [KEY_EVERY_MIN, KEY_EVERY_MAX];
+        nextKeyGate = ke[0] + Math.floor(Math.random() * (ke[1] - ke[0] + 1));
       } else {
         nextKeyGate--;
       }
@@ -575,7 +578,8 @@
     if (ORB().keyed) {
       if (nextKeyGate <= 0) {
         key = Math.random() < 0.5 ? 1 : -1;
-        nextKeyGate = KEY_EVERY_MIN + Math.floor(Math.random() * (KEY_EVERY_MAX - KEY_EVERY_MIN + 1));
+        const ke = ORB().keyEvery || [KEY_EVERY_MIN, KEY_EVERY_MAX];
+        nextKeyGate = ke[0] + Math.floor(Math.random() * (ke[1] - ke[0] + 1));
         gap *= 1.15;
       } else {
         nextKeyGate--;

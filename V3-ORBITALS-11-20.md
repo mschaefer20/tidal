@@ -3,6 +3,26 @@
 Working doc on branch `orbitals-11-20`. Nothing here is final; it's the menu
 we pick from. Companion to `V1.2-ORBITALS.md` (how VIII–X were designed).
 
+## Status (2026-08-15)
+
+Strategy per Marcus: **incremental** — build/ship one orbital at a time, do
+NOT burn the whole ladder in one release. XI and XII are BUILT and playable
+(`?orbital=11` / `?orbital=12`); the rest of this doc stays a menu.
+
+Playtested decisions so far:
+- **Membrane rule**: a charged gap checks your color ONCE, at first contact
+  (2D) / at the barrier plane (3D). Holding a color through the whole
+  collision band fought the pendulum at slow scroll — felt bad, cut.
+- **Cadence is per-orbital** (`keyEvery: [min,max]` = neutral gates between
+  charges). XI runs **[1,1] — every other gate charged** (Marcus preferred
+  denser rhythm over the 3-4 ramp). XII keeps the default 3-4.
+- Wrong-charge deaths get a **repel burst** in the gate's color (2D; the 3D
+  equivalent — curtain flare on the death frame — still TODO if needed).
+- Charged gaps: +15% width in 3D, never at extreme edges; charge odds ramp
+  replaced by deterministic cadence everywhere.
+- Open: does XII need [2,3] so it out-pressures XI? Ship XI solo or XI+XII
+  together? (Same-update pairing teaches then escalates.)
+
 ## Design pillars (carried over from I–X)
 
 1. **One button, always.** Every mechanic must read as "tap = flip the pull."

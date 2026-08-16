@@ -155,6 +155,7 @@
   const KEY_EVERY_MAX = 4;
   const KEY_FIRST = 2;          // ...after a couple of free gates to settle in
   let nextKeyGate = 0;          // countdown (in gates) to the next charged one
+  let repelFx = null;           // death-by-wrong-charge burst, drawn on the frozen frame
 
   // ---- 3D mode tunables ----------------------------------------------------
   const VP = { x: W / 2, y: ORB_Y - 30 };  // vanishing point of the tunnel
@@ -338,6 +339,7 @@
     shake = 0;
     flash = 0;
     travel = 0;
+    repelFx = null;
     paused = false;
     mode = startMode || (DEV_START_3D ? "3d" : "2d");
     orbital = mode === "3d" ? 2 : 1;
@@ -750,7 +752,11 @@
         // color the whole way through fought the pendulum itself).
         if (b.key && !b.keyChecked) {
           b.keyChecked = true;
-          if (b.key !== gravSide) return die();
+          if (b.key !== gravSide) {
+            // Repelled: burst in the gate's color so the death explains itself.
+            repelFx = { x: orb.x, y: orb.y, col: b.key > 0 ? ORB_RIGHT : ORB_LEFT };
+            return die();
+          }
         }
       }
     }
@@ -1352,6 +1358,29 @@
 
     // orb (color shows which way it's being pulled)
     glowCircle(orb.x, orb.y, ORB_R, orbColor(), true);
+
+    // Magnetar repel burst — rings + sparks in the gate's color, visible on
+    // the frozen death frame (cleared when the next run starts).
+    if (repelFx && !running) {
+      ctx.save();
+      ctx.strokeStyle = repelFx.col;
+      ctx.shadowBlur = 12; ctx.shadowColor = repelFx.col;
+      for (let r = 0; r < 3; r++) {
+        ctx.globalAlpha = 0.6 - r * 0.18;
+        ctx.lineWidth = 2.5 - r * 0.7;
+        ctx.beginPath(); ctx.arc(repelFx.x, repelFx.y, 15 + r * 9, 0, TAU); ctx.stroke();
+      }
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.85;
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * TAU + 0.4;
+        ctx.beginPath();
+        ctx.moveTo(repelFx.x + Math.cos(a) * 18, repelFx.y + Math.sin(a) * 18);
+        ctx.lineTo(repelFx.x + Math.cos(a) * 30, repelFx.y + Math.sin(a) * 30);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
 
   // ---- Orbital 3 rendering -------------------------------------------------

@@ -120,6 +120,7 @@
     { n: 9,  dim: "3d", wh: true, whY: true, drift: true, wells: true, str3: true, whEvery: [1.8, 3.0] }, // cosmic strings in the tunnel (3D orbital 8)
     { n: 10, dim: "2d", arena: true, novas: true, whArena: true, whEvery: [4.0, 6.0] }, // supernova finale
     { n: 11, dim: "2d", keyed: true },                             // magnetar: charged gaps
+    { n: 12, dim: "3d", keyed: true, drift: true, wells: true, taper: true }, // ion storm: charged gaps in the IV tunnel
   ];
   // The active orbital's entry (or orbital n's, when given).
   function ORB(n) { return ORBITALS[(n || orbital) - 1] || ORBITALS[0]; }
@@ -139,7 +140,7 @@
     const base = DEPTH_SPEED_START + (DEPTH_SPEED_MAX - DEPTH_SPEED_START) * difficulty();
     return base * (orbital >= 4 ? O4_SPEED_MULT : 1);
   }
-  const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V", "ORBITAL VI", "ORBITAL VII", "ORBITAL VIII", "ORBITAL IX", "ORBITAL X", "ORBITAL XI"];
+  const ORBITAL_LABEL = ["", "ORBITAL I", "ORBITAL II", "ORBITAL III", "ORBITAL IV", "ORBITAL V", "ORBITAL VI", "ORBITAL VII", "ORBITAL VIII", "ORBITAL IX", "ORBITAL X", "ORBITAL XI", "ORBITAL XII"];
 
   // The orb's two gravity-state colors (left pull / right pull).
   const ORB_LEFT = "#ff5e7e", ORB_RIGHT = "#4dd2ff";
@@ -378,6 +379,7 @@
   function build3DField() {
     bars = [];
     bonuses = [];
+    if (ORB().keyed) nextKeyGate = KEY_FIRST;   // fresh charge cadence each entry
     for (let d = 7; d <= D_SPAWN; d += DEPTH_SPACING) spawnBar3D(d);
   }
 
@@ -485,6 +487,7 @@
         cx: nx(b.gapX + b.gapW / 2),
         half: (b.gapW / 2) / halfPlay,
         taper: b.taper || 0,
+        key: b.key || 0,
       })),
       bonuses: bonuses.filter((o) => !o.taken && o.d > -1).map((o) => ({ nx: nx(o.x), d: o.d })),
       wormholes: ORB().wh
@@ -565,11 +568,25 @@
     // Orbital 4: each gap varies up to ±20% so the tunnel reads less uniform
     // (worst case ~77px vs the 26px orb — tight but fair).
     if (ORB().taper) gap *= 0.8 + Math.random() * 0.4;
-    const gapX = randomGapX(gap);
+    // Orbital 12 "Ion Storm": same charge cadence as Magnetar. A charged gap
+    // is ~15% wider and never sits at the extreme tunnel edges — the color
+    // demand is the challenge, not a pixel-perfect gap.
+    let key = 0;
+    if (ORB().keyed) {
+      if (nextKeyGate <= 0) {
+        key = Math.random() < 0.5 ? 1 : -1;
+        nextKeyGate = KEY_EVERY_MIN + Math.floor(Math.random() * (KEY_EVERY_MAX - KEY_EVERY_MIN + 1));
+        gap *= 1.15;
+      } else {
+        nextKeyGate--;
+      }
+    }
+    let gapX = randomGapX(gap);
+    if (key) gapX = Math.max(WALL + 34, Math.min(W - WALL - 34 - gap, gapX));
     // Orbital 4: gaps also taper — up to 20% wider/narrower at the top vs the
     // bottom (±10% around the middle), so where you cross vertically matters.
     const taper = ORB().taper ? Math.random() * 0.2 - 0.1 : 0;
-    bars.push({ d, gapX, gapW: gap, taper, passed: false });
+    bars.push({ d, gapX, gapW: gap, taper, key, passed: false });
     if (Math.random() < 0.6) {
       const bx = gapX + Math.random() * gap;
       bonuses.push({ x: bx, d: d - DEPTH_SPACING / 2, taken: false });
@@ -1264,6 +1281,12 @@
       if (!b.passed && b.d <= 0) {
         b.passed = true;
         if (!inGap(b)) return die();
+        // Ion Storm: the charge curtain is a membrane at the barrier plane —
+        // your color is checked the instant you cross, free to flip after.
+        if (b.key && b.key !== gravSide) {
+          repelFx = { x: orb.x, y: ORB_Y, col: b.key > 0 ? ORB_RIGHT : ORB_LEFT };
+          return die();
+        }
         addScore(1);
         if (orbital !== fromOrbital) return;   // advanced orbital mid-loop; bail
       }
@@ -1742,6 +1765,16 @@
     if (gl - lx > 0.5) { rr(lx, top, gl - lx, h, 5 * s); ctx.fill(); }
     if (rx - gr > 0.5) { rr(gr, top, rx - gr, h, 5 * s); ctx.fill(); }
     ctx.shadowBlur = 0;
+    // Ion Storm (canvas fallback): the charged gap is a colored light curtain,
+    // faint at depth and brightening as it approaches the camera plane.
+    if (b.key) {
+      const col = b.key > 0 ? ORB_RIGHT : ORB_LEFT;
+      ctx.save();
+      ctx.fillStyle = col;
+      ctx.globalAlpha = 0.10 + 0.28 * Math.max(0, Math.min(1, (6.5 - b.d) / 6));
+      ctx.fillRect(gl, top, gr - gl, h);
+      ctx.restore();
+    }
   }
 
   function drawPlanets() {

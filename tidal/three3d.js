@@ -33,7 +33,7 @@ let wellL, wellR, pullLine;   // Orbital 4: visible gravity wells + pull line
 const UP = new THREE.Vector3(0, 1, 0);
 const _dir = new THREE.Vector3();
 const _side = new THREE.Color();     // reused: orb gravity-state color
-let barPool = [], bonusPool = [], whPool = [], strPool = [];
+let barPool = [], bonusPool = [], whPool = [], strPool = [], curtainPool = [];
 let toonMap;
 let inited = false;
 
@@ -283,6 +283,19 @@ const api = {
 
     for (let i = 0; i < BAR_POOL; i++) barPool.push({ left: makeBlock(), right: makeBlock() });
 
+    // Orbital 12 charge curtains — an additive light plane filling a charged
+    // gap, so the gap itself glows in the color it demands.
+    const curtainGeo = new THREE.PlaneGeometry(1, 1);
+    for (let i = 0; i < BAR_POOL; i++) {
+      const m = new THREE.Mesh(
+        curtainGeo,
+        new THREE.MeshBasicMaterial({ color: 0x4dd2ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+      );
+      m.visible = false;
+      scene.add(m);
+      curtainPool.push(m);
+    }
+
     // bonus coins — 3D gold discs in the same soft (non-glossy) finish as the orb
     const coinGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.09, 30);
     coinGeo.rotateX(Math.PI / 2);   // face the camera; spins on Y like a collectible
@@ -353,6 +366,7 @@ const api = {
     for (const m of bonusPool) m.visible = false;
     for (const p of whPool) { p.a.visible = false; p.b.visible = false; }
     for (const m of strPool) m.visible = false;
+    for (const m of curtainPool) m.visible = false;
   },
 
   render(s) {
@@ -421,6 +435,19 @@ const api = {
       const sh = (data.taper || 0) * data.half * HALFW;
       placeBlock(b.left, -HALFW - Math.abs(sh), (data.cx - data.half) * HALFW, z, op, -sh);
       placeBlock(b.right, (data.cx + data.half) * HALFW, HALFW + Math.abs(sh), z, op, sh);
+      // charge curtain: visible faintly from spawn, brightening on approach
+      const cur = curtainPool[i];
+      if (cur) {
+        if (data.key) {
+          cur.visible = true;
+          cur.position.set(data.cx * HALFW, 0, z);
+          cur.scale.set(Math.max(0.2, data.half * 2 * HALFW * 0.92), FY * 2.3, 1);
+          cur.material.color.set(data.key > 0 ? 0x4dd2ff : 0xff5e7e);
+          cur.material.opacity = 0.08 + 0.30 * Math.max(0, Math.min(1, (6.5 - data.d) / 6));
+        } else {
+          cur.visible = false;
+        }
+      }
     }
 
     for (let i = 0; i < bonusPool.length; i++) {

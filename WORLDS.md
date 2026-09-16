@@ -247,6 +247,21 @@ fixed with aiming + wall glance; starfield added for the sense of motion.
 Open: is 260 px/s² of bend readable, or does the telegraph need to show the
 *bent* path?
 
+### Perihelion II — "Crossfire" (mock)
+
+Half the comets now enter from a **side edge** (`sides` 0.5 on the orbital),
+somewhere in the top third (`COMET_SIDE_Y` 5–33 % of H), angled 20°–40° below
+horizontal (`COMET_SIDE_ANGLE`), so they cross above the orb and come down —
+the user's call over "arrive at your row." Same telegraph (dashed streak from
+the edge, head peeking in), same speed, density, scoring, coins. Because a
+side comet's motion is mostly horizontal, the bend is now the main event:
+pull toward it and it drops onto you, pull away and it lifts and glances off
+the far planet (`COMET_BOUNCE`), so ricochets appear from the wall rule
+already in place. Track 17. Test: `?world=perihelion&orbital=2`.
+
+Proposed rest of the ladder after playtest: III Ice and Iron (comets that do
+and don't follow your pull), IV Fragments or Sungrazers, V arena finale.
+
 ### Original brainstorm (kept for the ladder)
 
 **Identity:** *everything falls.* No barriers at all. The pendulum, the two

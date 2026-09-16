@@ -146,8 +146,10 @@
   // toward whichever planet is active, so your tap steers the sky as well as
   // the orb. Only the head kills; the tail is light, and where a coin rides.
   //   comets: comet field replaces the barrier field (COMET_* tunables)
+  //   sides: fraction of comets that enter from a side edge (COMET_SIDE_*)
   const PERIHELION = [
     { n: 1, dim: "2d", comets: true, track: 16 },                   // Shower — dense, telegraphed, bending comets
+    { n: 2, dim: "2d", comets: true, sides: 0.5, track: 17 },       // Crossfire — side entries cross above you and come down
   ];
 
   // ---- Worlds ---------------------------------------------------------------
@@ -192,6 +194,13 @@
   const COMET_COIN_BACK = 56;        // px behind the head the coin rides
   const COMET_TAIL = 18;             // tail samples kept
   const COMET_BOUNCE = 0.7;          // vx kept when a comet glances off a planet surface
+  // Crossfire: side entries. A comet enters from the left or right edge
+  // somewhere in the top third, angled COMET_SIDE_ANGLE below horizontal, so
+  // it crosses ABOVE the orb and comes down — its whole path is then a
+  // function of your taps (pull toward it and it drops onto you; pull away
+  // and it lifts and glances off the far planet).
+  const COMET_SIDE_Y = [0.05, 0.33];         // entry height, fraction of H
+  const COMET_SIDE_ANGLE = [0.35, 0.70];     // rad below horizontal (20°–40°)
   // Comets are aimed so their straight path crosses the orb's row on-field,
   // and a comet that the bend carries into a planet glances off it instead
   // of leaving — every comet reaches the bottom.
@@ -616,6 +625,20 @@
   function cometMax() { return COMET_MAX_START + Math.round(2 * difficulty()); }
   function spawnComet() {
     const sp = cometSpeed();
+    const coin = Math.random() < COMET_COIN_ODDS ? { taken: false } : null;
+    if (ORB().sides && Math.random() < ORB().sides) {
+      // Crossfire: in from a side edge, high up, angled down across the field
+      const side = Math.random() < 0.5 ? -1 : 1;          // -1 = enters from the left
+      const a = randRange(COMET_SIDE_ANGLE[0], COMET_SIDE_ANGLE[1]);
+      comets.push({
+        x: side < 0 ? -COMET_R - 4 : W + COMET_R + 4,
+        y: randRange(H * COMET_SIDE_Y[0], H * COMET_SIDE_Y[1]),
+        vx: -side * Math.cos(a) * sp, vy: Math.sin(a) * sp, r: COMET_R,
+        entry: side < 0 ? "left" : "right",
+        warn: COMET_WARN, tail: [], passed: false, coin,
+      });
+      return;
+    }
     const x = randRange(WALL + 24, W - WALL - 24);
     // aim at a point on the orb's row that is comfortably on-field, then clamp
     // the tilt — the straight path always crosses the row inside the walls
@@ -624,8 +647,8 @@
     comets.push({
       x, y: -COMET_R - 4,
       vx: Math.sin(a) * sp, vy: Math.cos(a) * sp, r: COMET_R,
-      warn: COMET_WARN, tail: [], passed: false,
-      coin: Math.random() < COMET_COIN_ODDS ? { taken: false } : null,
+      entry: "top",
+      warn: COMET_WARN, tail: [], passed: false, coin,
     });
   }
   // Where the tail coin rides: a fixed distance behind the head along its motion.
@@ -1888,16 +1911,22 @@
         // peeks over the top edge and grows
         const t = 1 - c.warn / COMET_WARN;
         const l = Math.hypot(c.vx, c.vy) || 1;
+        // the streak starts where the head will cross the edge
+        const ex = c.entry === "left" ? 0 : c.entry === "right" ? W : c.x;
+        const ey = c.entry === "top" ? 0 : c.y;
         ctx.save();
         ctx.globalAlpha = 0.12 + 0.3 * t;
         ctx.strokeStyle = head; ctx.lineWidth = 1.5;
         ctx.setLineDash([6, 10]);
         ctx.beginPath();
-        ctx.moveTo(c.x, 0);
-        ctx.lineTo(c.x + (c.vx / l) * H * 1.3, (c.vy / l) * H * 1.3);
+        ctx.moveTo(ex, ey);
+        ctx.lineTo(ex + (c.vx / l) * H * 1.3, ey + (c.vy / l) * H * 1.3);
         ctx.stroke();
         ctx.restore();
-        glowCircle(c.x, 6, c.r * (0.45 + 0.55 * t), head);
+        // the head peeks in over the edge and grows
+        const px = c.entry === "left" ? 6 : c.entry === "right" ? W - 6 : c.x;
+        const py = c.entry === "top" ? 6 : c.y;
+        glowCircle(px, py, c.r * (0.45 + 0.55 * t), head);
         continue;
       }
       // tail: a polyline thinning and fading toward its end (curves with the bend)
@@ -2879,7 +2908,7 @@
       rho: orb.rho, vrho: orb.vrho, theta: orb.theta, surge: surge ? surge.phase : null, horizon: horizonR(), rim: rimR(),
       debris: (debris || []).map((d) => ({ ang: d.ang, r: d.r, warn: d.warn, size: d.size })),
       eddies: eddies.map((e) => ({ x: e.x, y: e.y, r: e.r, type: e.type })),
-      comets: (comets || []).map((c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, r: c.r, warn: c.warn })),
+      comets: (comets || []).map((c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, r: c.r, warn: c.warn, entry: c.entry })),
       bars: bars.map((b) => ({ y: b.y, d: b.d, gx: b.gapX, gw: b.gapW, key: b.key || 0 })),
     });
   }

@@ -147,9 +147,10 @@
   // the orb. Only the head kills; the tail is light, and where a coin rides.
   //   comets: comet field replaces the barrier field (COMET_* tunables)
   //   sides: fraction of comets that enter from a side edge (COMET_SIDE_*)
+  //   coinRain: [min,max] s between loose coins drifting down the open sky
   const PERIHELION = [
     { n: 1, dim: "2d", comets: true, track: 16 },                   // Shower — dense, telegraphed, bending comets
-    { n: 2, dim: "2d", comets: true, sides: 0.5, track: 17 },       // Crossfire — side entries cross above you and come down
+    { n: 2, dim: "2d", comets: true, sides: 0.5, coinRain: [3.5, 6.5], track: 17 }, // Crossfire — side entries cross above you and come down; loose coins drift by
   ];
 
   // ---- Worlds ---------------------------------------------------------------
@@ -200,7 +201,8 @@
   // function of your taps (pull toward it and it drops onto you; pull away
   // and it lifts and glances off the far planet).
   const COMET_SIDE_Y = [0.05, 0.33];         // entry height, fraction of H
-  const COMET_SIDE_ANGLE = [0.35, 0.70];     // rad below horizontal (20°–40°)
+  const COMET_SIDE_ANGLE = [0.50, 0.75];     // rad below horizontal (29°–43°) — shallowest steepened per playtest
+  const COIN_RAIN_SPEED = 150;               // px/s a loose coin drifts down (slower than any comet)
   // Comets are aimed so their straight path crosses the orb's row on-field,
   // and a comet that the bend carries into a planet glances off it instead
   // of leaving — every comet reaches the bottom.
@@ -495,6 +497,7 @@
   let eddies, nextEddy;         // Anomalies II: local-tide discs + spawn timer
   let nextKeyGate, repelFx;     // Anomalies IV: gates until the next charged one; wrong-charge burst
   let comets, nextComet;        // Perihelion: falling comets + spawn timer
+  let nextRainCoin;             // Perihelion: loose-coin timer (coinRain orbitals)
   let stars;                    // Perihelion: parallax starfield
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
 
@@ -615,6 +618,7 @@
   // ---- Perihelion: the comet field -------------------------------------------
   function buildComets() {
     bars = []; bonuses = []; comets = []; nextComet = 0.9;
+    nextRainCoin = ORB().coinRain ? randRange(ORB().coinRain[0], ORB().coinRain[1]) : 0;
     stars = [];
     for (let i = 0; i < STAR_COUNT; i++) {
       const layer = i % 3;
@@ -699,6 +703,27 @@
       }
       if (c.y > H + 80) comets.splice(i, 1);
     }
+
+    // loose coins: a few drift down the open sky (coinRain orbitals)
+    if (ORB().coinRain) {
+      nextRainCoin -= dt;
+      if (nextRainCoin <= 0) {
+        bonuses.push({ x: randRange(WALL + 30, W - WALL - 30), y: -12, taken: false, rain: true });
+        nextRainCoin = randRange(ORB().coinRain[0], ORB().coinRain[1]);
+      }
+    }
+    for (const o of bonuses) {
+      if (o.taken) continue;
+      o.y += COIN_RAIN_SPEED * dt;
+      const cx = o.x - orb.x, cy = o.y - orb.y;
+      if (cx * cx + cy * cy < (ORB_R + 9) ** 2) {
+        o.taken = true;
+        addScore(5); sfx("coin"); buzz("light");
+        if (window.TidalStore) TidalStore.addCoins(TidalStore.coinMultiplier());
+        if (orbital !== fromOrbital) return;
+      }
+    }
+    bonuses = bonuses.filter((o) => !o.taken && o.y < H + 20);
 
     // starfield drifts down; near layers faster (parallax)
     for (const st of stars) {
@@ -1941,6 +1966,8 @@
       if (c.coin && !c.coin.taken) { const p = cometCoinPos(c); glowCircle(p.x, p.y, 7, "#ffd84d"); }
       glowCircle(c.x, c.y, c.r, head, true);
     }
+    // loose coins
+    for (const o of bonuses) if (!o.taken) glowCircle(o.x, o.y, 7, "#ffd84d");
     // orb trail + orb
     for (let i = 0; i < orb.trail.length; i++) {
       const a = (i + 1) / orb.trail.length;
@@ -2909,6 +2936,7 @@
       debris: (debris || []).map((d) => ({ ang: d.ang, r: d.r, warn: d.warn, size: d.size })),
       eddies: eddies.map((e) => ({ x: e.x, y: e.y, r: e.r, type: e.type })),
       comets: (comets || []).map((c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, r: c.r, warn: c.warn, entry: c.entry })),
+      rain: bonuses.filter((o) => o.rain && !o.taken).length,
       bars: bars.map((b) => ({ y: b.y, d: b.d, gx: b.gapX, gw: b.gapW, key: b.key || 0 })),
     });
   }

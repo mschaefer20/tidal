@@ -2,7 +2,7 @@
 
 Status (2026-09-15): **design + working mock on branch `worlds`.** The world
 model is implemented in `tidal/game.js`, the title screen has a world picker,
-and Anomalies orbitals I ("Flux") and II ("Eddies") are playable as a PREVIEW. Nothing here has
+and all five Anomalies orbitals are playable as a PREVIEW. Nothing here has
 shipped. Companion docs: `V1.2-ORBITALS.md` (how VI–X were designed),
 `V3-ORBITALS-11-20.md` on branch `orbitals-11-20` (XI/XII, a possible source
 of Anomalies orbitals).
@@ -33,7 +33,7 @@ Everything about a run is scoped to the active world.
 | --- | --- | --- | --- |
 | `id` / `name` | storage id, display name | `origins` / ORIGINS | `anomalies` / ANOMALIES |
 | `tagline` | title-screen line under the picker | One button. Two gravities. | Gravity itself is unstable here. |
-| `orbitals` | ordered table of capability-flag entries (same `ORB()` flag system as before) | the ten (unchanged) | I–II (mock) |
+| `orbitals` | ordered table of capability-flag entries (same `ORB()` flag system as before) | the ten (unchanged) | I–V (mock) |
 | `step` | points per orbital (thresholds are `step × (n−1)`) | 100 | **60** |
 | `physics` | world-wide multipliers: `gravity` (pendulum pull), `gap` (barrier gap width) | — | gravity 0.85, gap 1.12 |
 | `palette` | left/right planet + orb colors (2D canvas and WebGL) | pink / cyan | violet `#c77dff` / mint `#5cf2c0` |
@@ -130,10 +130,10 @@ reaches it). `?probe` exposes `window.TidalProbe()` for headless tests.
 
 What the mocks do NOT do yet:
 
-- Flux only drives the 2D pendulum (`stepOrb`), which is also the 3D tunnel's
-  horizontal physics. Binary wells (`GRAVITY3`) and the arena (`ARENA_G`)
-  don't read `gravMult()` yet — wire them when Anomalies gains those forms.
-- World `physics.gravity` likewise only touches the pendulum.
+- Flux drives the 2D pendulum (`stepOrb`, also the 3D tunnel's horizontal
+  physics) and the arena's radial pull. Binary wells (`GRAVITY3`) don't read
+  `gravMult()` yet — wire them if Anomalies ever gains that form.
+- World `physics.gravity` likewise touches the pendulum and the arena only.
 - No per-world "how to play" copy; no world-specific shift-banner art.
 
 ### Proposed Anomalies ladder (five orbitals, all under Flux)
@@ -144,10 +144,12 @@ as Origins I–V.
 | # | Name | Form | Adds | Notes |
 | --- | --- | --- | --- | --- |
 | I | Flux | 2D pendulum | the breath itself | BUILT (mock) |
-| II | Eddies | 2D pendulum | local tides: surge / void / invert discs scrolling with the field | BUILT (mock) — user: "I like the eddies" |
-| III | Magnetar or Riptide | 2D | charged gaps from `orbitals-11-20`, or binary wells whose sway breathes | Magnetar is built + playtested; Riptide needs `gravMult()` in `updateBinary` |
-| IV | (open) | 2D | — | candidates below |
-| V | Slack Tide | arena | black-hole pull breathes; surges land at high tide, debris pauses at low | arena reads `gravMult()` |
+| II | Eddies | 2D pendulum | local tides: surge / void / drift / bounty / invert discs scrolling with the field | BUILT (mock) — user: "I like the eddies" |
+| III | Twin Tides | 2D pendulum | the two planets breathe half a cycle apart; the pull you feel is the tide of the planet you're falling toward | BUILT (mock) |
+| IV | Magnetar | 2D pendulum | charged gates (ported from `orbitals-11-20`) under twin tides — the color you need is the tide that helps you | BUILT (mock) |
+| V | Maelstrom | arena | the black hole's pull breathes; debris falls harder at high tide; surges wait for the swell and land on high tide | BUILT (mock) |
+
+Thresholds at step 60: II 60 · III 120 · IV 180 · V 240.
 
 Constraints from playtesting so far: **no 3D in Anomalies** (user), and the
 weakest pull must never feel like a crawl (`FLUX_LOW` 0.20, `EDDY_VOID` 0.35).
@@ -155,12 +157,54 @@ weakest pull must never feel like a crawl (`FLUX_LOW` 0.20, `EDDY_VOID` 0.35).
 ### Anomalies II — "Eddies" (mock)
 
 Local tides. Translucent discs (`EDDY_R_MIN`–`EDDY_R_MAX` px) spawn between
-barrier rows and scroll with the field, at most `EDDY_MAX` on screen. Inside:
-**surge** ×2 pull (gold), **void** ×`EDDY_VOID` 0.35 (a dark hole — pull
-nearly gone, not dead), **invert** reverses the pull (the disc shows the planet
-colors swapped; the orb's color and the lit planet flip while inside). Spawn
-odds in `EDDY_TYPES`. The global breath runs underneath at a gentler swing
+barrier rows and scroll with the field, at most `EDDY_MAX` on screen. Types
+(`EDDY_TYPES` = type, weight, min speed-ramp):
+
+| Type | Look | Inside | Weight |
+| --- | --- | --- | --- |
+| surge | gold disc, fast ring | pull ×2 | 0.28 |
+| void | dark hole, slow ring | pull ×`EDDY_VOID` 0.35 — nearly gone, not dead | 0.22 |
+| drift | pale blue, streaming chevrons | sideways current `EDDY_DRIFT` px/s² on top of gravity | 0.20 |
+| bounty | pale gold | no physics; carries `EDDY_BOUNTY` coins that scroll with it | 0.15 |
+| invert | planet colors swapped across the disc | pull reversed; orb color + lit planet flip while inside | 0.15, only once the speed ramp passes 0.35 |
+
+Bounty is what makes eddies a *choice*: a reason to steer into discs instead
+of always around them. The global breath runs underneath at a gentler swing
 (`fluxLow` 0.10 / `fluxHigh` 0.22). Test: `?world=anomalies&orbital=2`.
+
+### Anomalies III — "Twin Tides" (mock)
+
+Each planet has its own tide, half a cycle apart (`TWIN_LOW` 0.20 /
+`TWIN_HIGH` 0.35): when the left is at 1.35× the right is at 0.80×, and they
+trade every three seconds. The pull you feel is the tide of the planet you're
+falling toward, so which way to swing depends on which tide is up, not just
+where the gap is. The per-side wall glow is the read-out: one wall swells as
+the other fades. `fluxNow(side)` / `fluxT(side)` take the side; with no
+argument they use the side the orb is actually pulled toward.
+Test: `?world=anomalies&orbital=3`.
+
+### Anomalies IV — "Magnetar" (mock)
+
+The charged gates from `orbitals-11-20`, ported: some gaps carry a charge in
+one planet's color and only an orb pulled toward THAT planet passes. The
+charge is a membrane at the door — checked once on first contact, then you
+may flip inside the gap (holding a color through the whole band fought the
+pendulum in the original playtest). Wrong charge = repel burst in the gate's
+color + death. Shape cue for color-blind players: circles = right pull,
+diamonds = left pull. `keyEvery [1, 2]` — one or two neutral gates between
+charged ones, after `KEY_FIRST` 2 free gates at entry. Runs under twin tides,
+so the color you need and the tide that helps you get there are the same read.
+Test: `?world=anomalies&orbital=4`.
+
+### Anomalies V — "Maelstrom" (mock)
+
+The Origins V arena under the tide. The radial pull is multiplied by
+`gravMult()` (world physics × breath), debris falls harder at high tide, the
+accretion glow breathes, and gravity surges WAIT for the swell
+(`MAEL_SURGE_T` 0.5 on the tide read-out) so they always land on high tide —
+a surge is telegraphed twice, by the glow and by the tide you were already
+reading. Scoring is the standard arena rule (asteroids +1, coins +5 + wallet).
+Test: `?world=anomalies&orbital=5`.
 
 Playtest question: an eddy crosses the orb's row in ~0.4–1.0 s at current
 scroll speeds, so the local tide is a jolt rather than a zone. If it reads as

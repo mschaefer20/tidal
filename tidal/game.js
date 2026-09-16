@@ -127,10 +127,15 @@
   //   flux: gravity oscillation (FLUX_* tunables; fluxLow/fluxHigh override
   //         the swing below/above 1 per orbital)
   //   eddies: local-tide discs scrolling with the field (EDDY_*)
+  //   twin: the two planets breathe half a cycle apart (TWIN_*)
+  //   keyed: charged gates — only the matching pull passes (KEY_*, keyEvery)
   //   track: fx.js music id
   const ANOMALIES = [
     { n: 1, dim: "2d", flux: true, track: 11 },                    // Flux — pendulum, breathing gravity
-    { n: 2, dim: "2d", flux: true, eddies: true, fluxLow: 0.10, fluxHigh: 0.22, track: 12 }, // Eddies — local surges, voids, inversions
+    { n: 2, dim: "2d", flux: true, eddies: true, fluxLow: 0.10, fluxHigh: 0.22, track: 12 }, // Eddies — local surges, voids, drifts, bounties, inversions
+    { n: 3, dim: "2d", flux: true, twin: true, track: 13 },        // Twin Tides — the planets breathe against each other
+    { n: 4, dim: "2d", flux: true, twin: true, keyed: true, keyEvery: [1, 2], track: 14 }, // Magnetar — charged gates under twin tides
+    { n: 5, dim: "2d", arena: true, surges: true, scoreByDebris: true, flux: true, track: 15 }, // Maelstrom — the black hole breathes; surges land on high tide
   ];
 
   // ---- Worlds ---------------------------------------------------------------
@@ -176,7 +181,35 @@
   const EDDY_MAX = 2;                // discs sharing the screen
   const EDDY_SURGE = 2.0;            // pull multiplier inside a surge
   const EDDY_VOID = 0.35;            // pull inside a void — nearly gone, not dead
-  const EDDY_TYPES = [["surge", 0.45], ["void", 0.35], ["invert", 0.20]];   // spawn odds
+  const EDDY_DRIFT = 900;            // px/s² sideways current inside a drift eddy
+  const EDDY_BOUNTY = 4;             // coins a bounty eddy carries (no physics effect)
+  // [type, weight, min speed-ramp] — invert waits until the ramp is under way,
+  // so the first stretch of the orbital teaches with the gentler types.
+  const EDDY_TYPES = [["surge", 0.28, 0], ["void", 0.22, 0], ["drift", 0.20, 0], ["bounty", 0.15, 0], ["invert", 0.15, 0.35]];
+
+  // ---- Anomalies III "Twin Tides": the planets breathe against each other ---
+  // Each planet has its own tide, half a cycle apart: when the left is high
+  // the right is low. The pull you feel is the tide of the planet you're
+  // falling toward, so which way to swing depends on which tide is up. The
+  // per-side wall glow reads it: one wall swells as the other fades.
+  const TWIN_LOW = 0.20;             // weak side dips to 0.80× (never a crawl)
+  const TWIN_HIGH = 0.35;            // strong side climbs to 1.35×
+
+  // ---- Anomalies IV "Magnetar": charged gates (ported from orbitals-11-20) --
+  // Some gaps carry a charge in one planet's color: only an orb being pulled
+  // toward THAT planet passes. The charge is a membrane at the door — checked
+  // once on first contact, then you're free to flip inside the gap. A wrong
+  // charge repels: burst in the gate's color, death. Under twin tides the
+  // color you need and the tide that helps you get there are the same read.
+  // keyEvery [min,max] on the orbital = neutral gates between charged ones.
+  const KEY_EVERY_MIN = 3, KEY_EVERY_MAX = 4;
+  const KEY_FIRST = 2;               // free gates at orbital entry before the first charge
+
+  // ---- Anomalies V "Maelstrom": the black hole breathes ---------------------
+  // The O5 arena under the tide: the radial pull follows the breath, debris
+  // falls harder at high tide, and gravity surges WAIT for the swell so they
+  // land on high tide — a surge is read twice, by the glow and by the tide.
+  const MAEL_SURGE_T = 0.5;          // tide read-out (0…1) a surge waits for before charging
 
   // The active orbital's entry (or orbital n's, when given).
   function ORB(n) { return ORBITALS[(n || orbital) - 1] || ORBITALS[0]; }
@@ -184,28 +217,44 @@
   // regular mode world.step apart (Origins: 100/200/300/400).
   function orbitalThreshold(n) { return n <= 1 ? 0 : (devMode ? 7 : world.step) * (n - 1); }
   // Current flux multiplier (1 when the orbital has no flux).
-  function fluxNow() {
+  // `side` (-1 left / +1 right) matters only on twin orbitals; it defaults to
+  // the side the orb is actually being pulled toward.
+  function fluxNow(side) {
     const o = ORB();
     if (!o.flux) return 1;
     const ramp = Math.min(1, fluxTime / FLUX_RAMP);
     const s = Math.sin(TAU * fluxTime / FLUX_PERIOD);
+    if (o.twin) {
+      const sd = (side === undefined ? effSide() : side) > 0 ? -s : s;   // right planet runs half a cycle behind
+      return 1 + (sd < 0 ? TWIN_LOW : TWIN_HIGH) * ramp * sd;
+    }
     const amp = s < 0 ? (o.fluxLow || FLUX_LOW) : (o.fluxHigh || FLUX_HIGH);
     return 1 + amp * ramp * s;
   }
   // Tide read-out for the visuals: -1 at dead low tide … +1 at high tide.
-  function fluxT() {
-    const o = ORB(), f = fluxNow() - 1;
-    return Math.max(-1, Math.min(1, f / (f < 0 ? (o.fluxLow || FLUX_LOW) : (o.fluxHigh || FLUX_HIGH))));
+  function fluxT(side) {
+    const o = ORB(), f = fluxNow(side) - 1;
+    const lo = o.twin ? TWIN_LOW : (o.fluxLow || FLUX_LOW);
+    const hi = o.twin ? TWIN_HIGH : (o.fluxHigh || FLUX_HIGH);
+    return Math.max(-1, Math.min(1, f / (f < 0 ? lo : hi)));
   }
-  // Local tide at the orb's position: the first eddy containing it wins.
-  function eddyMult() {
-    if (!ORB().eddies) return 1;
+  // The eddy the orb is inside (first match wins), or null.
+  function eddyAt() {
+    if (!ORB().eddies) return null;
     for (const e of eddies) {
       const dx = orb.x - e.x, dy = orb.y - e.y;
-      if (dx * dx + dy * dy < e.r * e.r) return e.type === "surge" ? EDDY_SURGE : e.type === "void" ? EDDY_VOID : -1;
+      if (dx * dx + dy * dy < e.r * e.r) return e;
     }
-    return 1;
+    return null;
   }
+  // Local tide at the orb's position (drift and bounty leave the pull alone).
+  function eddyMult() {
+    const e = eddyAt();
+    if (!e) return 1;
+    return e.type === "surge" ? EDDY_SURGE : e.type === "void" ? EDDY_VOID : e.type === "invert" ? -1 : 1;
+  }
+  // Sideways current from a drift eddy (px/s²), 0 elsewhere.
+  function eddyPush() { const e = eddyAt(); return e && e.type === "drift" ? e.dir * EDDY_DRIFT : 0; }
   // Which way the orb is REALLY being pulled (an inverting eddy flips it).
   function effSide() { return gravSide * (eddyMult() < 0 ? -1 : 1); }
   // World-wide pendulum gravity multiplier: world physics × flux × local eddy.
@@ -372,6 +421,7 @@
   let nova, nextNova;           // Orbital 10: active shockwave + schedule
   let fluxTime;                 // Anomalies: flux clock (gravity breath)
   let eddies, nextEddy;         // Anomalies II: local-tide discs + spawn timer
+  let nextKeyGate, repelFx;     // Anomalies IV: gates until the next charged one; wrong-charge burst
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
 
   // Dev: open with ?3d (or ?mode=3d) to start straight in the 3D mode,
@@ -481,6 +531,7 @@
     nextDebris = DEBRIS_FIRST; debris = []; coins = []; escaped = false;
     fluxTime = 0;
     eddies = []; nextEddy = randRange(EDDY_EVERY_MIN, EDDY_EVERY_MAX);
+    nextKeyGate = KEY_FIRST; repelFx = null;
     if (mode === "3d") build3DField(); else { hide3D(); build2DField(); }
     if (window.TidalFX) TidalFX.setOrbital(ORB(orbital).track || orbital);
     scoreEl.textContent = score;
@@ -523,6 +574,7 @@
     strings = []; nextStr3 = randRange(STR3_EVERY_MIN, STR3_EVERY_MAX);
     fluxTime = 0;                // flux opens at neutral tide, amplitude eases in
     eddies = []; nextEddy = randRange(EDDY_EVERY_MIN, EDDY_EVERY_MAX);
+    nextKeyGate = KEY_FIRST; repelFx = null;
     if (mode === "3d") {
       depthSpeed = DEPTH_SPEED_START;
       intro = 0;
@@ -661,7 +713,18 @@
   function spawnBar(y) {
     const gap = gapWidth();
     const gapX = randomGapX(gap);
-    bars.push({ y, gapX, gapW: gap, passed: false });
+    // Magnetar: a charged gate lands every keyEvery gates (after KEY_FIRST free ones)
+    let key = 0;
+    if (ORB().keyed) {
+      if (nextKeyGate <= 0) {
+        key = Math.random() < 0.5 ? 1 : -1;
+        const ke = ORB().keyEvery || [KEY_EVERY_MIN, KEY_EVERY_MAX];
+        nextKeyGate = ke[0] + Math.floor(Math.random() * (ke[1] - ke[0] + 1));
+      } else {
+        nextKeyGate--;
+      }
+    }
+    bars.push({ y, gapX, gapW: gap, key, passed: false });
     // occasionally drop a bonus orb inside or near the gap
     if (Math.random() < 0.6) {
       const bx = gapX + Math.random() * gap;
@@ -690,6 +753,7 @@
   function update(dt) {
     if (flash > 0) flash = Math.max(0, flash - dt * 1.6);
     if (invuln > 0) invuln = Math.max(0, invuln - dt);
+    if (ORB().flux) fluxTime += dt;   // the tide runs in every form
     if (mode === "3d") return update3D(dt);
     if (ORB().arena) return updateArena(dt);
     if (ORB().binary) return updateBinary(dt);
@@ -770,7 +834,7 @@
   // Shared horizontal pendulum physics. Returns false if the orb crashed
   // into a planet surface (so the caller can stop).
   function stepOrb(dt) {
-    orb.vx += gravSide * GRAVITY * gravMult() * dt;
+    orb.vx += (gravSide * GRAVITY * gravMult() + eddyPush()) * dt;
     orb.vx = Math.max(-MAX_VX, Math.min(MAX_VX, orb.vx));
     orb.x += orb.vx * dt;
     orb.trail.push({ x: orb.x, y: orb.y });
@@ -830,7 +894,6 @@
   function update2D(dt) {
     const fromOrbital = orbital;
     scroll = scrollSpeed();   // score-based, capped at DIFF_MAX_SCORE
-    if (ORB().flux) fluxTime += dt;
 
     if (!stepOrb(dt)) return die();
 
@@ -857,6 +920,14 @@
       // collision band
       if (b.y + BAR_TH >= ORB_Y - ORB_R && b.y <= ORB_Y + ORB_R) {
         if (!inGap(b)) return die();
+        // Magnetar membrane: the charge is checked ONCE, at the door.
+        if (b.key && !b.keyChecked) {
+          b.keyChecked = true;
+          if (b.key !== effSide()) {
+            repelFx = { x: orb.x, y: orb.y, col: b.key > 0 ? colRight() : colLeft() };
+            return die();
+          }
+        }
       }
     }
 
@@ -885,9 +956,18 @@
     while (y <= -r - BAR_SPACING) y += BAR_SPACING;
     if (eddies.some((e) => Math.abs(e.y - y) < BAR_SPACING / 2)) return false;   // one per row
     const x = randRange(WALL + r * 0.5, W - WALL - r * 0.5);
-    let p = Math.random(), type = EDDY_TYPES[0][0];
-    for (const [t, w] of EDDY_TYPES) { if (p < w) { type = t; break; } p -= w; }
-    eddies.push({ x, y, r, type, age: 0, spin: Math.random() < 0.5 ? -1 : 1 });
+    // weighted roulette over the types the speed ramp has unlocked
+    const elig = EDDY_TYPES.filter(([, , mn]) => difficulty() >= mn);
+    let p = Math.random() * elig.reduce((a, [, w]) => a + w, 0), type = elig[0][0];
+    for (const [t, w] of elig) { if (p < w) { type = t; break; } p -= w; }
+    eddies.push({ x, y, r, type, age: 0, spin: Math.random() < 0.5 ? -1 : 1, dir: Math.random() < 0.5 ? -1 : 1 });
+    // a bounty carries its coins with it (they scroll at the same rate)
+    if (type === "bounty") {
+      for (let i = 0; i < EDDY_BOUNTY; i++) {
+        const a = (i / EDDY_BOUNTY) * TAU + 0.6;
+        bonuses.push({ x: x + Math.cos(a) * r * 0.5, y: y + Math.sin(a) * r * 0.5, taken: false });
+      }
+    }
     return true;
   }
   function updateEddies(dt, dy) {
@@ -1177,7 +1257,8 @@
     let gMult = 1;
     if (ORB().surges) {
       nextSurge -= dt;
-      if (!surge && nextSurge <= 0) surge = { phase: "charge", t: SURGE_CHARGE };
+      // Maelstrom: the surge waits for the swell so it lands on high tide
+      if (!surge && nextSurge <= 0 && (!ORB().flux || fluxT() > MAEL_SURGE_T)) surge = { phase: "charge", t: SURGE_CHARGE };
       if (surge) {
         surge.t -= dt;
         if (surge.phase === "charge") {
@@ -1193,7 +1274,7 @@
     // sway between the hole (inner wall) and the rim (outer wall) — a pendulum
     // bent into a circle.
     orb.theta -= ARENA_OMEGA * dt;   // counter-clockwise sweep
-    orb.vrho += (gravSide > 0 ? -1 : 1) * ARENA_G * gMult * dt;   // attract = inward
+    orb.vrho += (gravSide > 0 ? -1 : 1) * ARENA_G * gMult * gravMult() * dt;   // attract = inward (× world physics × tide)
     orb.vrho = Math.max(-ARENA_MAXVR, Math.min(ARENA_MAXVR, orb.vrho));
     orb.rho += orb.vrho * dt;
     orb.x = ARENA.x + Math.cos(orb.theta) * orb.rho;
@@ -1229,7 +1310,7 @@
       const d = debris[i];
       if (d.warn > 0) { d.warn -= dt; continue; }   // telegraphing at the rim (no fall/collision)
       if (d.vr === 0) d.vr = -DEBRIS_SPEED0;          // release into the fall
-      d.vr -= DEBRIS_GRAV * gMult * dt;     // accelerates toward the hole (harder mid-surge)
+      d.vr -= DEBRIS_GRAV * gMult * fluxNow() * dt;     // accelerates toward the hole (harder mid-surge / at high tide)
       d.r += d.vr * dt;
       d.ang += d.vAng * dt;
       if (d.r <= ARENA.rEvent) {            // consumed by the hole → score
@@ -1485,6 +1566,30 @@
     // orb (color shows which way it's being pulled)
     glowCircle(orb.x, orb.y, ORB_R, orbColor(), true);
     if (ORB().flux) drawFluxHalo();
+    if (repelFx && !running) drawRepel();
+  }
+
+  // Magnetar repel burst — rings + sparks in the gate's color, on the frozen
+  // death frame, so the death explains itself.
+  function drawRepel() {
+    ctx.save();
+    ctx.strokeStyle = repelFx.col;
+    ctx.shadowBlur = 12; ctx.shadowColor = repelFx.col;
+    for (let r = 0; r < 3; r++) {
+      ctx.globalAlpha = 0.6 - r * 0.18;
+      ctx.lineWidth = 2.5 - r * 0.7;
+      ctx.beginPath(); ctx.arc(repelFx.x, repelFx.y, 15 + r * 9, 0, TAU); ctx.stroke();
+    }
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.85;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU + 0.4;
+      ctx.beginPath();
+      ctx.moveTo(repelFx.x + Math.cos(a) * 18, repelFx.y + Math.sin(a) * 18);
+      ctx.lineTo(repelFx.x + Math.cos(a) * 30, repelFx.y + Math.sin(a) * 30);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   // Anomalies II: one eddy — a translucent disc with a spinning ring. Surge is
@@ -1502,13 +1607,30 @@
       ctx.fillStyle = colLeft(); ctx.fill();
     } else {
       const g = ctx.createRadialGradient(e.x, e.y, e.r * 0.15, e.x, e.y, e.r);
-      if (e.type === "surge") { g.addColorStop(0, "rgba(255,210,122,0.30)"); g.addColorStop(1, "rgba(255,210,122,0.04)"); }
-      else { g.addColorStop(0, "rgba(2,3,10,0.85)"); g.addColorStop(1, "rgba(2,3,10,0.25)"); }
+      const fills = {
+        surge:  ["rgba(255,210,122,0.30)", "rgba(255,210,122,0.04)"],
+        void:   ["rgba(2,3,10,0.85)",      "rgba(2,3,10,0.25)"],
+        drift:  ["rgba(191,233,255,0.16)", "rgba(191,233,255,0.03)"],
+        bounty: ["rgba(255,226,138,0.14)", "rgba(255,226,138,0.03)"],
+      }[e.type];
+      g.addColorStop(0, fills[0]); g.addColorStop(1, fills[1]);
       ctx.fillStyle = g;
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, TAU); ctx.fill();
     }
+    // drift: chevrons streaming in the current's direction
+    if (e.type === "drift") {
+      ctx.globalAlpha = inside ? 0.9 : 0.5;
+      ctx.strokeStyle = "#bfe9ff"; ctx.lineWidth = 2;
+      const off = (e.age * 60) % 24;
+      for (let k = -1; k <= 1; k++) {
+        const cx = e.x + e.dir * (k * 24 + off - 12);
+        ctx.beginPath();
+        ctx.moveTo(cx - e.dir * 7, e.y - 9); ctx.lineTo(cx + e.dir * 3, e.y); ctx.lineTo(cx - e.dir * 7, e.y + 9);
+        ctx.stroke();
+      }
+    }
     // spinning dashed ring (direction = spin; void rings crawl slowly)
-    const col = e.type === "surge" ? gold : e.type === "void" ? grey : "#ffffff";
+    const col = { surge: gold, void: grey, drift: "#bfe9ff", bounty: "#ffe28a", invert: "#ffffff" }[e.type];
     const rot = e.age * (e.type === "void" ? 0.6 : 1.8) * e.spin;
     ctx.translate(e.x, e.y); ctx.rotate(rot);
     ctx.globalAlpha = inside ? 0.95 : 0.55;
@@ -1531,11 +1653,11 @@
   // high tide and all but vanishes at low tide (gravity is global, so both
   // walls breathe together), and a halo around the orb swells with the pull.
   function drawFlux() {
-    const t = fluxT();                               // -1 low tide … +1 high tide
-    const wgl = 34 + 46 * Math.max(0, t);
-    const a = 0.06 + 0.16 * (t + 1) / 2;
     const es = effSide();
     for (const side of [-1, 1]) {
+      const t = fluxT(side);                         // -1 low tide … +1 high tide (per planet on twin orbitals)
+      const wgl = 34 + 46 * Math.max(0, t);
+      const a = 0.06 + 0.16 * (t + 1) / 2;
       const x0 = side < 0 ? WALL : W - WALL;
       const col = side < 0 ? colLeft() : colRight();
       const g = ctx.createLinearGradient(x0, 0, x0 - side * wgl, 0);
@@ -1648,7 +1770,8 @@
     }
 
     // accretion glow (brightens while a surge charges / fires)
-    const glowR = ARENA.rEvent * (active ? 3.6 : charging ? 2.6 + Math.sin(arenaTime * 22) * 0.5 : 2.2);
+    const tide = ORB().flux ? fluxT() : 0;           // Maelstrom: the accretion glow breathes with the tide
+    const glowR = ARENA.rEvent * (active ? 3.6 : charging ? 2.6 + Math.sin(arenaTime * 22) * 0.5 : 2.2) * (1 + 0.3 * tide);
     const grd = ctx.createRadialGradient(cx, cy, ARENA.rEvent * 0.5, cx, cy, glowR);
     grd.addColorStop(0, active ? "rgba(255,120,40,0.95)" : "rgba(255,140,60,0.7)");
     grd.addColorStop(1, "rgba(255,80,30,0)");
@@ -1949,6 +2072,29 @@
     // right segment
     rr(b.gapX + b.gapW, b.y, W - WALL - (b.gapX + b.gapW), BAR_TH, 6); ctx.fill();
     ctx.shadowBlur = 0;
+    // Magnetar: a charged gap glows in its required color, with a SHAPE cue
+    // for color-blind players — circles = right pull, diamonds = left pull.
+    if (b.key) {
+      const col = b.key > 0 ? colRight() : colLeft();
+      const yMid = b.y + BAR_TH / 2;
+      ctx.save();
+      ctx.fillStyle = col;
+      ctx.shadowBlur = 10; ctx.shadowColor = col;
+      ctx.globalAlpha = 0.16 + 0.06 * Math.sin(performance.now() / 180);
+      ctx.fillRect(b.gapX, b.y + BAR_TH * 0.2, b.gapW, BAR_TH * 0.6);
+      ctx.globalAlpha = 0.95;
+      for (const ex of [b.gapX, b.gapX + b.gapW]) {
+        if (b.key > 0) {
+          ctx.beginPath(); ctx.arc(ex, yMid, 6, 0, TAU); ctx.fill();
+        } else {
+          ctx.save();
+          ctx.translate(ex, yMid); ctx.rotate(Math.PI / 4);
+          ctx.fillRect(-5, -5, 10, 10);
+          ctx.restore();
+        }
+      }
+      ctx.restore();
+    }
   }
 
   function drawWormhole(w) {
@@ -2088,7 +2234,7 @@
   function start() {
     reset();
     resume();
-    if (DEV_START_ORBITAL >= 2) enterOrbital(DEV_START_ORBITAL);   // dev: ?orbital=N
+    if (DEV_START_ORBITAL >= 2) { devMode = true; enterOrbital(DEV_START_ORBITAL); }   // dev: ?orbital=N (unranked; never unlocks progression)
     sfx("start");
   }
 
@@ -2471,8 +2617,10 @@
     window.TidalProbe = () => ({
       running, score, orbital, world: world.id, mode, gravSide, countdown,
       x: orb.x, vx: orb.vx, y: orb.y, flux: fluxNow(), grav: gravMult(),
+      tideL: fluxNow(-1), tideR: fluxNow(1), tideT: fluxT(),
+      rho: orb.rho, vrho: orb.vrho, surge: surge ? surge.phase : null,
       eddies: eddies.map((e) => ({ x: e.x, y: e.y, r: e.r, type: e.type })),
-      bars: bars.map((b) => ({ y: b.y, d: b.d, gx: b.gapX, gw: b.gapW })),
+      bars: bars.map((b) => ({ y: b.y, d: b.d, gx: b.gapX, gw: b.gapW, key: b.key || 0 })),
     });
   }
 

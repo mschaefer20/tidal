@@ -108,6 +108,9 @@
     // Worlds beyond Origins reference tracks by id (ORBITALS[].track).
     11: { arp: [130.81, 185.00, 196.00, 261.63, 293.66, 261.63, 196.00, 185.00], roots: [65.41, 65.41, 92.50, 98.00], step: 260, type: "triangle", lp: 1200, gain: 0.10, bass: 0.22 }, // Anomalies I "Flux" — slow, breathing C lydian
     12: { arp: [164.81, 196.00, 233.08, 246.94, 329.63, 246.94, 233.08, 196.00], roots: [82.41, 82.41, 77.78, 87.31], step: 190, type: "triangle", lp: 1500, gain: 0.10, bass: 0.24 }, // Anomalies II "Eddies" — swirling Em with chromatic pull
+    13: { arp: [110.00, 164.81, 220.00, 261.63, 123.47, 164.81, 246.94, 329.63], roots: [55.00, 61.74, 55.00, 61.74], step: 230, type: "triangle", lp: 1300, gain: 0.10, bass: 0.24 }, // Anomalies III "Twin Tides" — Am / B call-and-response, two tides
+    14: { arp: [138.59, 164.81, 207.65, 277.18, 207.65, 164.81], roots: [69.30, 69.30, 73.42, 65.41], step: 170, type: "sawtooth", lp: 1500, gain: 0.09, bass: 0.24 },                 // Anomalies IV "Magnetar" — tense staccato C#m
+    15: { arp: [98.00, 116.54, 146.83, 196.00, 155.56, 146.83, 116.54, 103.83], roots: [49.00, 46.25, 49.00, 51.91], step: 160, type: "sawtooth", lp: 1250, gain: 0.11, bass: 0.30 }, // Anomalies V "Maelstrom" — churning Gm, heaving bass
   };
   function trk() { return TRACKS[currentTrack] || TRACKS[1]; }
 

@@ -95,11 +95,16 @@ Keyboard (browser only): Space/Enter flip, Esc/P pause.
   of orbitals, each with its own step, physics, palette, best score,
   leaderboard and Start From progress. **Origins** = the shipped ten,
   untouched (keeps `tidal_high_scores` + the old storage keys).
-  **Anomalies** = world two, signature twist **Flux** (gravity breathes on a
-  6 s cycle); orbital I is built as a PREVIEW. Title screen has a world
-  picker. Design doc + open decisions: **`WORLDS.md`**. Test:
-  `?world=anomalies`; `?probe` exposes state for headless smoke tests.
-  (XI/XII on `orbitals-11-20` are candidates for Anomalies III–IV.)
+  **Anomalies** (world two, twist: **Flux** — gravity breathes; I Flux, II
+  Eddies, III Twin Tides, IV Magnetar, V Spring Tide) and **Perihelion**
+  (world three, no gates — comets; I Shower, II Crossfire, III Rogues, IV
+  Pushers, V arena finale) are COMPLETE as PREVIEW mocks (2026-09-16), all
+  at 100 points per orbital like Origins. Title screen has a world picker.
+  Design doc, shelved ideas + ship checklist: **`WORLDS.md`**. Dev:
+  `?world=<id>&orbital=N`, `?probe` (state snapshot), `?immortal` (no
+  death) for headless smoke tests. Before shipping: create Game Center
+  boards `tidal_anomalies` + `tidal_perihelion`, drop the `mock` flags,
+  How to Play copy, sw bump, Codemagic build.
 
 ## Known issues / TODO
 - ✅ Music-on-speaker FIXED (arp up an octave, mid harmonic carries the bass) —

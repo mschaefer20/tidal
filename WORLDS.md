@@ -1,6 +1,6 @@
 # Tidal Orbit — Worlds (the next gameplay direction)
 
-Status (2026-09-15): **design + working mock on branch `worlds`.** The world
+Status (2026-09-16): **three complete worlds as PREVIEW mocks on branch `worlds`, ready to push.** The world
 model is implemented in `tidal/game.js`, the title screen has a world picker,
 and all five Anomalies orbitals are playable as a PREVIEW. Nothing here has
 shipped. Companion docs: `V1.2-ORBITALS.md` (how VI–X were designed),
@@ -34,7 +34,7 @@ Everything about a run is scoped to the active world.
 | `id` / `name` | storage id, display name | `origins` / ORIGINS | `anomalies` / ANOMALIES |
 | `tagline` | title-screen line under the picker | One button. Two gravities. | Gravity itself is unstable here. |
 | `orbitals` | ordered table of capability-flag entries (same `ORB()` flag system as before) | the ten (unchanged) | I–V (mock) |
-| `step` | points per orbital (thresholds are `step × (n−1)`) | 100 | **60** |
+| `step` | points per orbital (thresholds are `step × (n−1)`) | 100 | 100 (was 60 in the mocks; user set every world to 100 on 2026-09-16) |
 | `physics` | world-wide multipliers: `gravity` (pendulum pull), `gap` (barrier gap width) | — | gravity 0.85, gap 1.12 |
 | `palette` | left/right planet + orb colors (2D canvas and WebGL) | pink / cyan | violet `#c77dff` / mint `#5cf2c0` |
 | `leaderboard` | Game Center leaderboard id | `tidal_high_scores` | `tidal_anomalies` (to be created) |
@@ -122,7 +122,7 @@ Why Flux over the alternatives considered:
 
 The plain 2D pendulum under the breathing pull, so the twist is learned clean
 before anything is stacked on it. World physics make it a touch easier than
-Origins I: 0.85× pull (floatier), 1.12× gap width, 60-point spacing. Music:
+Origins I: 0.85× pull (floatier), 1.12× gap width, 100-point spacing. Music:
 track 11, slow triangle-wave C lydian.
 
 Play it: `http://localhost:8123/tidal/?world=anomalies` (title picker also
@@ -149,7 +149,7 @@ as Origins I–V.
 | IV | Magnetar | 2D pendulum | charged gates (ported from `orbitals-11-20`) under twin tides — the color you need is the tide that helps you | BUILT (mock) |
 | V | Spring Tide | arena | the shoreline moves: horizon rides the left tide, rim rides the right; tide pockets surface in the band; surges land on high water | BUILT (mock) — replaced "Maelstrom", which the user found too close to Origins V |
 
-Thresholds at step 60: II 60 · III 120 · IV 180 · V 240.
+Thresholds at step 100: II 100 · III 200 · IV 300 · V 400 (same spacing as Origins).
 
 Constraints from playtesting so far: **no 3D in Anomalies** (user), and the
 weakest pull must never feel like a crawl (`FLUX_LOW` 0.20, `EDDY_VOID` 0.35).
@@ -391,7 +391,7 @@ its finale is reachable by far more players than Origins X.
 
 ## Decisions still open
 
-1. **Step:** 60 (proposed) or 75? 60 makes the finale a ~5-minute goal.
+1. ~~**Step:** 60 or 75?~~ Decided: **100**, same as Origins, for every world.
 2. **Ship size:** Anomalies I–II in the first release with III–V following,
    or all five at once? Incremental keeps a release cadence; all-five gives
    the picker a complete world.

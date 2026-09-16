@@ -172,12 +172,12 @@
       step: 100, orbitals: ORIGINS,
       leaderboard: "tidal_high_scores", bestKey: "tidal-best", unlockKey: "tidal-unlocked" },
     { id: "anomalies", name: "ANOMALIES", tagline: "Gravity itself is unstable here.", mock: true,
-      step: 60, orbitals: ANOMALIES,
+      step: 100, orbitals: ANOMALIES,
       physics: { gravity: 0.85, gap: 1.12 },        // floatier pull, roomier gaps
       palette: { left: "#c77dff", right: "#5cf2c0" },
       leaderboard: "tidal_anomalies", bestKey: "tidal-best-anomalies", unlockKey: "tidal-unlocked-anomalies" },
     { id: "perihelion", name: "PERIHELION", tagline: "Everything falls.", mock: true,
-      step: 60, orbitals: PERIHELION,
+      step: 100, orbitals: PERIHELION,
       palette: { left: "#ff8c42", right: "#7fd7ff" },   // ember / ice — warm planets, cold comets
       leaderboard: "tidal_perihelion", bestKey: "tidal-best-perihelion", unlockKey: "tidal-unlocked-perihelion" },
   ];
@@ -3192,7 +3192,7 @@
   // ?probe → read-only state snapshot for headless smoke tests (dev only).
   if (params.has("probe")) {
     window.TidalProbe = () => ({
-      running, score, orbital, world: world.id, mode, gravSide, countdown,
+      running, score, orbital, world: world.id, step: world.step, nextAt: ORBITALS[orbital] ? orbitalThreshold(ORBITALS[orbital].n) : null, mode, gravSide, countdown,
       x: orb.x, vx: orb.vx, y: orb.y, flux: fluxNow(), grav: gravMult(),
       tideL: fluxNow(-1), tideR: fluxNow(1), tideT: fluxT(),
       rho: orb.rho, vrho: orb.vrho, theta: orb.theta, surge: surge ? surge.phase : null, horizon: horizonR(), rim: rimR(),

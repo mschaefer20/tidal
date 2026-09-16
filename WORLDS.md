@@ -277,17 +277,24 @@ coins fall in. Bait: `ROGUE_COINS` 3 coins orbit each rogue at `ROGUE_COIN_R`
 well is harmless. Keeps II's side entries and loose coins. Track 18.
 Test: `?world=perihelion&orbital=3`.
 
-### Perihelion IV — "Sungrazers" (mock)
+### Perihelion IV — "Pushers" (mock)
 
-The planets become slingshots. An ice comet that reaches the **active**
-planet whips around it and is flung back across the field at
-`GRAZE_WHIP_START` 1.15× → `GRAZE_WHIP_MAX` 1.45× its arriving sideways speed
-(capped at `GRAZE_VMAX` 560 px/s), flaring hot for `GRAZE_HOT` 1 s: swollen
-pale-gold head, brighter tail, and an expanding ring in the planet's color at
-the point of the whip. The inactive planet still just glances
-(`COMET_BOUNCE`), so **your flip decides which wall is hot**. Rogues are too
-massive to whip and glance as before. Keeps side entries (which feed the
-walls), rogues at 0.2, loose coins. Track 19. Test: `?world=perihelion&orbital=4`.
+The well that repels. A pusher (`pusher` 0.22; rogues stay at 0.22) is a pale
+ice-blue body with a white-hot core, radius `PUSH_R` 20, 0.75× speed, heavy
+(`PUSH_BEND` 0.3), wrapped in the same 115 px well as a rogue — but its rings
+**expand outward**, and inside it the orb and every comet are shoved away
+(`PUSH_FORCE` 700 px/s² at the surface → 0 at the edge; `PUSH_FORCE_SKY` 420
+on the sky). Beside rogues this makes push-pull corridors: ice funnels between
+a pusher and a rogue, loose coins scatter from pushers and fall into rogues,
+and a pusher near a wall shoves you toward the planet. Pushers carry no bait.
+Wells are signed in code (`wellSign`, `wellAx`, `wellPushBody`, `drawWell`),
+so a third well kind is one more sign/colour. Track 19.
+Test: `?world=perihelion&orbital=4`.
+
+Shelved: "Sungrazers" (2026-09-16) — the active planet whipped comets back
+across the field hot. Built and verified; user: "not as cool as I thought."
+The whip was a wall event you mostly saw from a distance; wells are something
+you feel.
 
 Shelved: "Ice and Iron" (same day) — a second comet kind that merely bent
 less. User: "I don't really love the iron concept … maybe they are like

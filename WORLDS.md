@@ -300,13 +300,14 @@ radial pull steers the ice — attract inward and the comets rush the hole
 (`PERI_BEND_IN` 240 px/s² extra inward), repel outward and they slow to a crawl
 (`PERI_BEND_OUT` 150 px/s² outward; radial speed capped at `PERI_ICE_VMAX`).
 Measured with the pull held: median inward speed ~160 px/s attracting vs
-~40 px/s repelling. **Rogues and pushers** (`PERI_HEAVY_ODDS` 0.15 each)
-fall at their own pace (`PERI_HEAVY_SPEED` 0.7) and their wells (`PERI_WELL`
+~40 px/s repelling. **Rogues and pushers** (`PERI_HEAVY_ODDS` 0.30 each — 60 % of
+the sky is wells; spawns are `PERI_CADENCE` 1.8× sparser than Origins V, floor
+`PERI_CADENCE_MIN` 0.8 s) fall at their own pace (`PERI_HEAVY_SPEED` 0.7) and their wells (`PERI_WELL`
 100 px) drag / shove your **radius**, the one axis you control, at the same
 strengths as the field; they also pull / push the falling ice. Rogues carry
 three orbiting coins (`PERI_COIN_R` 40). No gravity surges — the comets and
-the wells are the attacks. Standard arena scoring: a comet the hole swallows
-is +1, coins +5. Track 20. Test: `?world=perihelion&orbital=5`.
+the wells are the attacks. Scoring: ice the hole swallows +1, a swallowed
+rogue or pusher `PERI_WELL_SCORE` **+5**, coins +5. Track 20. Test: `?world=perihelion&orbital=5`.
 
 Shelved: "Sungrazers" (2026-09-16) — the active planet whipped comets back
 across the field hot. Built and verified; user: "not as cool as I thought."

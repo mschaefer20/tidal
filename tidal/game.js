@@ -248,7 +248,10 @@
   const PERI_BEND_OUT = 150;                 // px/s² OUTWARD on the ice while you repel (they stall, even back off)
   const PERI_ICE_VMAX = 280;                 // px/s cap on ice radial speed either way
   const PERI_HEAVY_SPEED = 0.7;              // rogue / pusher fall rate vs ice
-  const PERI_HEAVY_ODDS = 0.15;              // odds each of rogue / pusher per spawn
+  const PERI_HEAVY_ODDS = 0.30;              // odds each of rogue / pusher per spawn (60% of the sky is wells)
+  const PERI_CADENCE = 1.8;                  // spawn interval multiplier — fewer comets than Origins V's rocks
+  const PERI_CADENCE_MIN = 0.8;              // s floor between spawns
+  const PERI_WELL_SCORE = 5;                 // a rogue / pusher the hole swallows is worth this (ice: 1)
   const PERI_WELL = 100;                     // arena well radius (tighter than the field's 115)
   const PERI_COIN_R = 40;                    // bait orbit radius in the arena
   // Comets are aimed so their straight path crosses the orb's row on-field,
@@ -1669,8 +1672,9 @@
     nextDebris -= dt;
     if (nextDebris <= 0 && !nova) {
       spawnDebris();
-      nextDebris = Math.max(0.38, 1.5 - arenaTime * 0.05)
-        * (ORB().novas ? 1.4 : ORB().scoreByDebris ? 1 / 1.1 : 1);
+      nextDebris = Math.max(ORB().cometArena ? PERI_CADENCE_MIN : 0.38, 1.5 - arenaTime * 0.05)
+        * (ORB().novas ? 1.4 : ORB().scoreByDebris ? 1 / 1.1 : 1)
+        * (ORB().cometArena ? PERI_CADENCE : 1);   // Perihelion: sparser sky, more of it wells
     }
     const peri = !!ORB().cometArena;
     for (let i = debris.length - 1; i >= 0; i--) {
@@ -1696,7 +1700,7 @@
       if (peri) { d.tail.push({ x: d.x, y: d.y }); if (d.tail.length > 12) d.tail.shift(); }
       if (d.r <= horizonR()) {              // consumed by the hole → score
         debris.splice(i, 1);
-        addScore(1);                        // same value on every arena orbital
+        addScore(heavy ? PERI_WELL_SCORE : 1);   // rocks and ice +1; a swallowed well +5 (Perihelion)
         if (orbital !== fromOrbital) return;
         continue;
       }

@@ -231,7 +231,7 @@ then fall at `COMET_SPEED_START` 230 → `COMET_SPEED_MAX` 400 px/s. Each is
 aimed at a point on the orb's row well inside the walls (tilt clamped to
 `COMET_ANGLE` 0.45 rad), and one the bend carries into a planet glances off
 it (`COMET_BOUNCE` 0.7) — every comet reaches the bottom. Head radius
-`COMET_R` 12. **Only the head kills.** The tail is a
+`COMET_R` 15 (user asked for bigger twice: 9 → 12 → 15). **Only the head kills.** The tail is a
 thinning polyline that curves with the bend; 45 % of comets carry a coin
 `COMET_COIN_BACK` 56 px behind the head. Score +1 per head that passes the
 orb's row, +5 per tail coin. Cadence 1.25 → 0.6 s and cap 3 → 5 on screen

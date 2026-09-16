@@ -179,7 +179,7 @@
   // passes below the orb's row, +5 for a coin plucked from a tail. Comets
   // bend toward the active planet at COMET_BEND — flipping to swing one way
   // pulls the incoming comets the same way. Density ramps with difficulty().
-  const COMET_R = 12;                // head radius (kill radius vs the orb)
+  const COMET_R = 15;                // head radius (kill radius vs the orb)
   const COMET_SPEED_START = 230;     // px/s at the start of the ramp
   const COMET_SPEED_MAX = 400;
   const COMET_ANGLE = 0.45;          // rad from vertical: max entry tilt

@@ -292,6 +292,13 @@ body[data-world="anomalies"] {
 body[data-world="anomalies"] #board {
   background: radial-gradient(120% 90% at 50% 0%, #1a1034 0%, #0c0a20 60%, #05060f 100%);
 }
+body[data-world="perihelion"] {
+  --left: #ff8c42;
+  --right: #7fd7ff;
+}
+body[data-world="perihelion"] #board {
+  background: radial-gradient(120% 90% at 50% 0%, #1c1226 0%, #0a0c1c 60%, #05060f 100%);
+}
 
 .howto {
   text-align: left;

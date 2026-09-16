@@ -139,6 +139,17 @@
     { n: 5, dim: "2d", arena: true, surges: true, scoreByDebris: true, flux: true, twin: true, spring: true, eddies: true, track: 15 }, // Spring Tide — the shoreline moves: horizon and rim breathe against each other; tide pockets in the band
   ];
 
+  // ---- Perihelion (world three — PREVIEW) ------------------------------------
+  // Identity: EVERYTHING FALLS. No barriers — the field is open sky and the
+  // hazards are comets with glowing heads and long tails. Signature twist,
+  // live from orbital I: the planets pull the comets too. A comet bends
+  // toward whichever planet is active, so your tap steers the sky as well as
+  // the orb. Only the head kills; the tail is light, and where a coin rides.
+  //   comets: comet field replaces the barrier field (COMET_* tunables)
+  const PERIHELION = [
+    { n: 1, dim: "2d", comets: true, track: 16 },                   // Shower — dense, telegraphed, bending comets
+  ];
+
   // ---- Worlds ---------------------------------------------------------------
   // A World is a named ladder of orbitals with its own threshold spacing,
   // leaderboard, best score and Start From progress. Origins is the original
@@ -156,7 +167,30 @@
       physics: { gravity: 0.85, gap: 1.12 },        // floatier pull, roomier gaps
       palette: { left: "#c77dff", right: "#5cf2c0" },
       leaderboard: "tidal_anomalies", bestKey: "tidal-best-anomalies", unlockKey: "tidal-unlocked-anomalies" },
+    { id: "perihelion", name: "PERIHELION", tagline: "Everything falls.", mock: true,
+      step: 60, orbitals: PERIHELION,
+      palette: { left: "#ff8c42", right: "#7fd7ff" },   // ember / ice — warm planets, cold comets
+      leaderboard: "tidal_perihelion", bestKey: "tidal-best-perihelion", unlockKey: "tidal-unlocked-perihelion" },
   ];
+
+  // ---- Perihelion "Shower": comets -------------------------------------------
+  // A comet waits at the top edge for COMET_WARN seconds with its entry path
+  // drawn as a streak (the telegraph), then falls. Score +1 per head that
+  // passes below the orb's row, +5 for a coin plucked from a tail. Comets
+  // bend toward the active planet at COMET_BEND — flipping to swing one way
+  // pulls the incoming comets the same way. Density ramps with difficulty().
+  const COMET_R = 9;                 // head radius (kill radius vs the orb)
+  const COMET_SPEED_START = 230;     // px/s at the start of the ramp
+  const COMET_SPEED_MAX = 400;
+  const COMET_ANGLE = 0.45;          // rad from vertical: max entry tilt
+  const COMET_BEND = 260;            // px/s² sideways pull toward the active planet
+  const COMET_WARN = 0.6;            // s the telegraph shows before the head falls
+  const COMET_EVERY_START = 1.25;    // s between comets at the start of the ramp
+  const COMET_EVERY_MIN = 0.6;       // …at full ramp
+  const COMET_MAX_START = 3;         // on-screen cap at the start (+2 by full ramp)
+  const COMET_COIN_ODDS = 0.45;      // chance a comet carries a coin in its tail
+  const COMET_COIN_BACK = 56;        // px behind the head the coin rides
+  const COMET_TAIL = 18;             // tail samples kept
 
   // ---- Anomalies "Flux": gravity breathes ----------------------------------
   // gravity × (1 + FLUX_AMP·sin(2π·t / FLUX_PERIOD)). Telegraphed by the wall
@@ -443,6 +477,7 @@
   let fluxTime;                 // Anomalies: flux clock (gravity breath)
   let eddies, nextEddy;         // Anomalies II: local-tide discs + spawn timer
   let nextKeyGate, repelFx;     // Anomalies IV: gates until the next charged one; wrong-charge burst
+  let comets, nextComet;        // Perihelion: falling comets + spawn timer
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
 
   // Dev: open with ?3d (or ?mode=3d) to start straight in the 3D mode,
@@ -553,9 +588,71 @@
     fluxTime = 0;
     eddies = []; nextEddy = randRange(EDDY_EVERY_MIN, EDDY_EVERY_MAX);
     nextKeyGate = KEY_FIRST; repelFx = null;
-    if (mode === "3d") build3DField(); else { hide3D(); build2DField(); }
+    comets = []; nextComet = 0;
+    if (mode === "3d") build3DField(); else { hide3D(); if (ORB(orbital).comets) buildComets(); else build2DField(); }
     if (window.TidalFX) TidalFX.setOrbital(ORB(orbital).track || orbital);
     scoreEl.textContent = score;
+  }
+
+  // ---- Perihelion: the comet field -------------------------------------------
+  function buildComets() { bars = []; bonuses = []; comets = []; nextComet = 0.9; }
+  function cometSpeed() { return COMET_SPEED_START + (COMET_SPEED_MAX - COMET_SPEED_START) * difficulty(); }
+  function cometMax() { return COMET_MAX_START + Math.round(2 * difficulty()); }
+  function spawnComet() {
+    const a = (Math.random() * 2 - 1) * COMET_ANGLE;
+    const sp = cometSpeed();
+    comets.push({
+      x: randRange(WALL + 24, W - WALL - 24), y: -COMET_R - 4,
+      vx: Math.sin(a) * sp, vy: Math.cos(a) * sp, r: COMET_R,
+      warn: COMET_WARN, tail: [], passed: false,
+      coin: Math.random() < COMET_COIN_ODDS ? { taken: false } : null,
+    });
+  }
+  // Where the tail coin rides: a fixed distance behind the head along its motion.
+  function cometCoinPos(c) {
+    const l = Math.hypot(c.vx, c.vy) || 1;
+    return { x: c.x - (c.vx / l) * COMET_COIN_BACK, y: c.y - (c.vy / l) * COMET_COIN_BACK };
+  }
+  function updateComets(dt) {
+    const fromOrbital = orbital;
+    if (!stepOrb(dt)) return die();
+
+    // keep the sky busy: at least one comet, cadence + cap ramp with difficulty
+    nextComet -= dt;
+    if ((nextComet <= 0 || comets.length === 0) && comets.length < cometMax()) {
+      spawnComet();
+      nextComet = randRange(0.8, 1.2) * (COMET_EVERY_START - (COMET_EVERY_START - COMET_EVERY_MIN) * difficulty());
+    }
+
+    for (let i = comets.length - 1; i >= 0; i--) {
+      const c = comets[i];
+      if (c.warn > 0) { c.warn -= dt; continue; }        // telegraphing at the top edge
+      c.vx += gravSide * COMET_BEND * dt;                 // the twist: comets bend with your pull
+      c.x += c.vx * dt; c.y += c.vy * dt;
+      c.tail.push({ x: c.x, y: c.y });
+      if (c.tail.length > COMET_TAIL) c.tail.shift();
+      // only the head kills
+      const dx = c.x - orb.x, dy = c.y - orb.y;
+      if (dx * dx + dy * dy < (c.r + ORB_R * 0.8) ** 2) return die();
+      // a coin riding the tail
+      if (c.coin && !c.coin.taken) {
+        const p = cometCoinPos(c);
+        const cx = p.x - orb.x, cy = p.y - orb.y;
+        if (cx * cx + cy * cy < (ORB_R + 9) ** 2) {
+          c.coin.taken = true;
+          addScore(5); sfx("coin"); buzz("light");
+          if (window.TidalStore) TidalStore.addCoins(TidalStore.coinMultiplier());
+          if (orbital !== fromOrbital) return;
+        }
+      }
+      // dodged: the head is past the orb's row
+      if (!c.passed && c.y > ORB_Y + c.r) {
+        c.passed = true;
+        addScore(1);
+        if (orbital !== fromOrbital) return;
+      }
+      if (c.y > H + 80 || c.x < -80 || c.x > W + 80) comets.splice(i, 1);
+    }
   }
 
   // Build a fresh set of scrolling barriers above the screen (2D forms).
@@ -605,7 +702,7 @@
     } else {
       intro = ORB(n).arena ? 0 : 1;   // the arena gets a settle-in intro
       hide3D();
-      if (ORB(n).arena) buildArena(); else build2DField();
+      if (ORB(n).arena) buildArena(); else if (ORB(n).comets) buildComets(); else build2DField();
     }
     if (window.TidalFX) TidalFX.setOrbital(ORB(n).track || n);
     playShiftBanner(n);
@@ -776,6 +873,7 @@
     if (invuln > 0) invuln = Math.max(0, invuln - dt);
     if (ORB().flux) fluxTime += dt;   // the tide runs in every form
     if (mode === "3d") return update3D(dt);
+    if (ORB().comets) return updateComets(dt);
     if (ORB().arena) return updateArena(dt);
     if (ORB().binary) return updateBinary(dt);
     return update2D(dt);
@@ -1554,6 +1652,8 @@
     if (mode === "3d") {
       if (engine3D) drawWarpUnderlay();   // speed-lines behind the fading WebGL layer
       else draw3D();                       // canvas fallback
+    } else if (ORB().comets) {
+      drawComets();
     } else if (ORB().arena) {
       drawArena();
     } else if (ORB().binary) {
@@ -1729,6 +1829,50 @@
     ctx.shadowBlur = 10; ctx.shadowColor = orbColor();
     ctx.beginPath(); ctx.arc(orb.x, orb.y, ORB_R * (1.9 + 0.9 * t), 0, TAU); ctx.stroke();
     ctx.restore();
+  }
+
+  // ---- Perihelion rendering ---------------------------------------------------
+  function drawComets() {
+    drawPlanets();
+    const head = "#eef8ff";
+    for (const c of comets) {
+      if (c.warn > 0) {
+        // telegraph: the entry streak brightens as release nears; the head
+        // peeks over the top edge and grows
+        const t = 1 - c.warn / COMET_WARN;
+        const l = Math.hypot(c.vx, c.vy) || 1;
+        ctx.save();
+        ctx.globalAlpha = 0.12 + 0.3 * t;
+        ctx.strokeStyle = head; ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 10]);
+        ctx.beginPath();
+        ctx.moveTo(c.x, 0);
+        ctx.lineTo(c.x + (c.vx / l) * H * 1.3, (c.vy / l) * H * 1.3);
+        ctx.stroke();
+        ctx.restore();
+        glowCircle(c.x, 6, c.r * (0.45 + 0.55 * t), head);
+        continue;
+      }
+      // tail: a polyline thinning and fading toward its end (curves with the bend)
+      for (let i = 1; i < c.tail.length; i++) {
+        const a = i / c.tail.length;
+        ctx.save();
+        ctx.globalAlpha = a * 0.55;
+        ctx.strokeStyle = head; ctx.lineWidth = 1 + a * c.r * 1.1; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(c.tail[i - 1].x, c.tail[i - 1].y); ctx.lineTo(c.tail[i].x, c.tail[i].y); ctx.stroke();
+        ctx.restore();
+      }
+      if (c.coin && !c.coin.taken) { const p = cometCoinPos(c); glowCircle(p.x, p.y, 7, "#ffd84d"); }
+      glowCircle(c.x, c.y, c.r, head, true);
+    }
+    // orb trail + orb
+    for (let i = 0; i < orb.trail.length; i++) {
+      const a = (i + 1) / orb.trail.length;
+      ctx.globalAlpha = a * 0.4;
+      glowCircle(orb.trail[i].x, orb.trail[i].y, ORB_R * (0.4 + a * 0.5), orbColor());
+    }
+    ctx.globalAlpha = 1;
+    glowCircle(orb.x, orb.y, ORB_R, orbColor(), true);
   }
 
   // ---- Orbital 3 rendering -------------------------------------------------
@@ -2688,6 +2832,7 @@
       rho: orb.rho, vrho: orb.vrho, theta: orb.theta, surge: surge ? surge.phase : null, horizon: horizonR(), rim: rimR(),
       debris: (debris || []).map((d) => ({ ang: d.ang, r: d.r, warn: d.warn, size: d.size })),
       eddies: eddies.map((e) => ({ x: e.x, y: e.y, r: e.r, type: e.type })),
+      comets: (comets || []).map((c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, r: c.r, warn: c.warn })),
       bars: bars.map((b) => ({ y: b.y, d: b.d, gx: b.gapX, gw: b.gapW, key: b.key || 0 })),
     });
   }

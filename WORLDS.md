@@ -216,9 +216,32 @@ Shelved first draft ("Maelstrom", same day): the Origins V arena with only the
 pull breathing and surges on high tide. User: "5 is the same." It was — the
 band never moved, so it played like Origins V with a slower rhythm.
 
-## World three candidate — "Comets" (brainstorm, not built)
+## World three — "Perihelion" (orbital I built as a mock)
 
-User's brief: a world where you avoid comets instead of gates.
+User's brief: a world where you avoid comets instead of gates. Name chosen by
+the user: **Perihelion**. Decisions: the bend is the twist from orbital I;
+density is a *shower* (several on screen), never fewer than one.
+
+### Perihelion I — "Shower" (mock)
+
+Open sky, no barriers. Comets wait at the top edge for `COMET_WARN` 0.6 s
+with their entry path drawn as a dashed streak and the head peeking over the
+edge, then fall at `COMET_SPEED_START` 230 → `COMET_SPEED_MAX` 400 px/s,
+tilted up to `COMET_ANGLE` 0.45 rad. **Only the head kills.** The tail is a
+thinning polyline that curves with the bend; 45 % of comets carry a coin
+`COMET_COIN_BACK` 56 px behind the head. Score +1 per head that passes the
+orb's row, +5 per tail coin. Cadence 1.25 → 0.6 s and cap 3 → 5 on screen
+ramp with `difficulty()`; if the sky is ever empty a comet spawns at once.
+**The bend:** every falling comet accelerates sideways at `COMET_BEND`
+260 px/s² toward the active planet — the same sign as the orb's own pull —
+so a flip steers the sky. Palette ember `#ff8c42` / ice `#7fd7ff`. Music:
+track 16. Test: `?world=perihelion` (`?probe` exposes `comets`).
+
+Playtest questions: is 260 px/s² of bend readable, or does it need the
+telegraph streak to show the *bent* path? Is a 0.6 s warning enough at 400
+px/s? Do walls (planet surfaces) still feel fair with no gaps to aim for?
+
+### Original brainstorm (kept for the ladder)
 
 **Identity:** *everything falls.* No barriers at all. The pendulum, the two
 planets and the one button are unchanged; the field is open sky and the

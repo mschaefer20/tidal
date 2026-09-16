@@ -218,8 +218,8 @@
   const ROGUE_SPEED = 0.7;                   // speed vs ice
   const ROGUE_BEND = 0.3;                    // bend vs ice
   const ROGUE_WELL = 115;                    // well radius (px) — the pull's reach
-  const ROGUE_PULL = 750;                    // px/s² on the orb at the surface, fading to 0 at the edge
-  const ROGUE_PULL_SKY = 420;                // px/s² on other comets and loose coins
+  const ROGUE_PULL = 1100;                   // px/s² on the orb at the surface, fading to 0 at the edge (was 750; user wanted stronger)
+  const ROGUE_PULL_SKY = 600;                // px/s² on other comets and loose coins (was 420)
   const ROGUE_COINS = 3;                     // coins orbiting inside the well
   const ROGUE_COIN_R = 58, ROGUE_COIN_SPIN = 1.6;   // orbit radius (px) and rate (rad/s)
   const ROGUE_COL = "#c25a3f", ROGUE_TAIL = "#7a4a3f", ROGUE_CORE = "#2a1410", ROGUE_RING = "rgba(255,140,100,";
@@ -232,8 +232,8 @@
   const PUSH_R = 20;                         // body radius
   const PUSH_SPEED = 0.75;                   // speed vs ice
   const PUSH_BEND = 0.3;                     // bend vs ice (heavy, like a rogue)
-  const PUSH_FORCE = 700;                    // px/s² on the orb at the surface, fading to 0 at the well's edge
-  const PUSH_FORCE_SKY = 420;                // px/s² on other comets and loose coins
+  const PUSH_FORCE = 1050;                   // px/s² on the orb at the surface, fading to 0 at the well's edge (was 700)
+  const PUSH_FORCE_SKY = 600;                // px/s² on other comets and loose coins (was 420)
   const PUSH_COL = "#a8dcff", PUSH_TAIL = "#6f93b3", PUSH_CORE = "#ffffff", PUSH_RING = "rgba(168,220,255,";
   // Comets are aimed so their straight path crosses the orb's row on-field,
   // and a comet that the bend carries into a planet glances off it instead

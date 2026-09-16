@@ -269,7 +269,7 @@ A third of comets (`rogue` 0.33) are rogues — dark red-brown bodies, radius
 `ROGUE_R` 22, 0.7× speed, barely bending (`ROGUE_BEND` 0.3) — each wrapped
 in a visible well (`ROGUE_WELL` 115 px: a dim halo, rings falling inward, a
 dashed edge). Inside the well the orb is pulled toward the body at up to
-`ROGUE_PULL` 750 px/s² at the surface, fading to zero at the edge, so the
+`ROGUE_PULL` 1100 px/s² at the surface, fading to zero at the edge, so the
 pendulum bends toward the comet as it passes and you tap against it. The
 well pulls the sky too (`ROGUE_PULL_SKY`): ice comets curve into it, loose
 coins fall in. Bait: `ROGUE_COINS` 3 coins orbit each rogue at `ROGUE_COIN_R`
@@ -283,7 +283,7 @@ The well that repels. A pusher (`pusher` 0.22; rogues stay at 0.22) is a pale
 ice-blue body with a white-hot core, radius `PUSH_R` 20, 0.75× speed, heavy
 (`PUSH_BEND` 0.3), wrapped in the same 115 px well as a rogue — but its rings
 **expand outward**, and inside it the orb and every comet are shoved away
-(`PUSH_FORCE` 700 px/s² at the surface → 0 at the edge; `PUSH_FORCE_SKY` 420
+(`PUSH_FORCE` 1050 px/s² at the surface → 0 at the edge; `PUSH_FORCE_SKY` 600
 on the sky). Beside rogues this makes push-pull corridors: ice funnels between
 a pusher and a rogue, loose coins scatter from pushers and fall into rogues,
 and a pusher near a wall shoves you toward the planet. Pushers carry no bait.

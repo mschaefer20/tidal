@@ -583,6 +583,19 @@
   // via URL params (?dev / ?orbital / ?3d) for testing — not in the shipped UI.
   let devMode = params.has("dev") || DEV_START_3D || DEV_START_ORBITAL > 0;
   // Highest orbital the player has reached — unlocks "Start From" (persisted).
+  // Tester dev unlock: 5 taps on the title logo within 2 s toggles it. While
+  // on, Start From lists EVERY orbital of the current world; a run begun
+  // beyond your real progress is unranked (dev mode: no best, no unlock, no
+  // leaderboard). Persists until toggled off. Shows a DEV tag in the picker.
+  const DEV_UNLOCK_KEY = "tidal-dev-unlock";
+  let devUnlock = localStorage.getItem(DEV_UNLOCK_KEY) === "1";
+  let logoTaps = 0, logoTapAt = 0;
+  function toggleDevUnlock() {
+    devUnlock = !devUnlock;
+    localStorage.setItem(DEV_UNLOCK_KEY, devUnlock ? "1" : "0");
+    sfx(devUnlock ? "shift" : "crash"); buzz("medium");
+    refreshWorldUI(); refreshCoinsUI();
+  }
   function loadUnlocked() { return Math.max(1, Math.min(ORBITALS.length, Number(localStorage.getItem(world.unlockKey) || 1))); }
   let unlocked = loadUnlocked();
   function setUnlocked(n) {
@@ -613,7 +626,7 @@
     setText("world-name", world.name);
     setText("title-tagline", world.tagline);
     const tag = document.getElementById("world-tag");
-    if (tag) tag.hidden = !world.mock;
+    if (tag) { tag.hidden = !(world.mock || devUnlock); tag.textContent = devUnlock ? "DEV" : "PREVIEW"; }
     const n = ORBITALS.length;
     setText("world-sub", best > 0
       ? `Best ${best} · ${ORBITAL_LABEL[unlocked] || "ORBITAL " + unlocked} reached`
@@ -3100,7 +3113,7 @@
       list.innerHTML = "";
       for (let n = 1; n <= ORBITALS.length; n++) {
         const btn = document.createElement("button");
-        const open = n <= unlocked;
+        const open = n <= unlocked || devUnlock;
         btn.className = open ? "btn" : "btn ghost";
         btn.disabled = !open;
         btn.textContent = (open ? "" : "\uD83D\uDD12 ") + (ORBITAL_LABEL[n] || "ORBITAL " + n);
@@ -3112,7 +3125,7 @@
   }
 
   function startFrom(n) {
-    devMode = false;
+    devMode = devUnlock && n > unlocked;   // dev unlock beyond real progress = unranked run
     reset(ORBITALS[n - 1].dim);
     runStartOrbital = n;
     score = orbitalThreshold(n);            // your journey resumes at this orbital's score
@@ -3135,6 +3148,16 @@
     invuln = 1e9;                           // never die
     score = s.score; scoreEl.textContent = score;
   }
+
+  // Title logo: 5 quick taps toggle the tester dev unlock
+  const titleLogo = document.getElementById("title-logo");
+  if (titleLogo) titleLogo.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const now = performance.now();
+    logoTaps = now - logoTapAt < 2000 ? logoTaps + 1 : 1;
+    logoTapAt = now;
+    if (logoTaps >= 5) { logoTaps = 0; toggleDevUnlock(); }
+  });
 
   // Leaderboard button on the game-over / pause overlay
   const lbOver = document.getElementById("lb-over");
@@ -3192,7 +3215,7 @@
   // ?probe → read-only state snapshot for headless smoke tests (dev only).
   if (params.has("probe")) {
     window.TidalProbe = () => ({
-      running, score, orbital, world: world.id, step: world.step, nextAt: ORBITALS[orbital] ? orbitalThreshold(ORBITALS[orbital].n) : null, mode, gravSide, countdown,
+      running, score, orbital, world: world.id, step: world.step, dev: devMode, devUnlock, nextAt: ORBITALS[orbital] ? orbitalThreshold(ORBITALS[orbital].n) : null, mode, gravSide, countdown,
       x: orb.x, vx: orb.vx, y: orb.y, flux: fluxNow(), grav: gravMult(),
       tideL: fluxNow(-1), tideR: fluxNow(1), tideT: fluxT(),
       rho: orb.rho, vrho: orb.vrho, theta: orb.theta, surge: surge ? surge.phase : null, horizon: horizonR(), rim: rimR(),

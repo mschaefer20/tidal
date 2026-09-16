@@ -67,7 +67,12 @@ Keyboard (browser only): Space/Enter flip, Esc/P pause.
   `ci/version.js` = 1.2.0. Build with Codemagic workflow **`ios-tidal`**
   (iOS only — `release-tidal` would also push an Android bundle to the Play
   internal track), choosing branch `worlds` when starting the build; the
-  IPA lands in App Store Connect for TestFlight internal testing. Before
+  IPA lands in App Store Connect for TestFlight internal testing. **Tester
+  dev unlock:** tap the title logo 5× within 2 s → DEV tag in the picker,
+  Start From lists every orbital of the current world; runs begun beyond real
+  progress are unranked. 5 taps again turns it off (persists in
+  `tidal-dev-unlock`). Decide whether to keep or strip it before App Store
+  submission (v1.0 stripped the old logo shortcut for release). Before
   App Store submission: create Game Center boards `tidal_anomalies` +
   `tidal_perihelion` (leaderboard set), store copy + screenshots for the
   new worlds, then merge `worlds` → `main`.

@@ -2222,7 +2222,7 @@
     const prem = window.TidalStore && TidalStore.hasPremium();
     setText("title-coins", coinsNow() + " coins" + (prem ? " · 2×" : ""));
     const sf = document.getElementById("btn-startfrom");
-    if (sf) sf.hidden = unlocked < 2;        // unlocks after you first reach orbital 2 (score 100)
+    if (sf) sf.hidden = false;               // same menu in every world; locked orbitals grey out inside
   }
 
   function refreshShop() {
@@ -2264,11 +2264,13 @@
     const list = document.getElementById("startfrom-list");
     if (list) {
       list.innerHTML = "";
-      for (let n = 1; n <= unlocked; n++) {
+      for (let n = 1; n <= ORBITALS.length; n++) {
         const btn = document.createElement("button");
-        btn.className = "btn";
-        btn.textContent = ORBITAL_LABEL[n];
-        btn.addEventListener("click", (ev) => { ev.stopPropagation(); startFrom(n); });
+        const open = n <= unlocked;
+        btn.className = open ? "btn" : "btn ghost";
+        btn.disabled = !open;
+        btn.textContent = (open ? "" : "\uD83D\uDD12 ") + (ORBITAL_LABEL[n] || "ORBITAL " + n);
+        if (open) btn.addEventListener("click", (ev) => { ev.stopPropagation(); startFrom(n); });
         list.appendChild(btn);
       }
     }

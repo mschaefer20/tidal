@@ -262,8 +262,18 @@ already in place. A few loose coins drift down the open sky on their own
 (`coinRain` [3.5, 6.5] s apart, `COIN_RAIN_SPEED` 150 px/s) — a low-frequency
 reward that isn't attached to a hazard. Track 17. Test: `?world=perihelion&orbital=2`.
 
-Proposed rest of the ladder after playtest: III Ice and Iron (comets that do
-and don't follow your pull), IV Fragments or Sungrazers, V arena finale.
+### Perihelion III — "Ice and Iron" (mock)
+
+The twist becomes a read. Two comet kinds share the sky (`iron` 0.4 on the
+orbital): **ice** is the comet you know — it bends fully with your pull;
+**iron** is heavier — bigger (`COMET_IRON_R` 19), slower (`COMET_IRON_SPEED`
+0.8), and it barely bends (`COMET_IRON_BEND` 0.15), so it will not follow
+you. You steer ice and you *move* for iron. Iron is rust-colored from the
+telegraph streak on, with a dark heavy core, and carries tail coins less
+often (`COMET_IRON_COIN` 0.25). Keeps II's side entries and loose coins.
+Track 18. Test: `?world=perihelion&orbital=3`.
+
+Proposed rest of the ladder: IV Fragments or Sungrazers, V arena finale.
 
 ### Original brainstorm (kept for the ladder)
 

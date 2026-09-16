@@ -148,9 +148,11 @@
   //   comets: comet field replaces the barrier field (COMET_* tunables)
   //   sides: fraction of comets that enter from a side edge (COMET_SIDE_*)
   //   coinRain: [min,max] s between loose coins drifting down the open sky
+  //   iron: fraction of comets that are IRON — bigger, slower, barely bend (COMET_IRON_*)
   const PERIHELION = [
     { n: 1, dim: "2d", comets: true, track: 16 },                   // Shower — dense, telegraphed, bending comets
     { n: 2, dim: "2d", comets: true, sides: 0.5, coinRain: [3.5, 6.5], track: 17 }, // Crossfire — side entries cross above you and come down; loose coins drift by
+    { n: 3, dim: "2d", comets: true, sides: 0.5, iron: 0.4, coinRain: [4.0, 7.0], track: 18 }, // Ice and Iron — iron comets barely bend: read which ones will follow you
   ];
 
   // ---- Worlds ---------------------------------------------------------------
@@ -203,6 +205,16 @@
   const COMET_SIDE_Y = [0.05, 0.33];         // entry height, fraction of H
   const COMET_SIDE_ANGLE = [0.50, 0.75];     // rad below horizontal (29°–43°) — shallowest steepened per playtest
   const COIN_RAIN_SPEED = 150;               // px/s a loose coin drifts down (slower than any comet)
+  // Ice and Iron (III): two comet kinds. ICE is the comet you know — it bends
+  // fully with your pull. IRON is heavier: bigger, slower, and it barely
+  // bends, so it will NOT follow you — you dodge it by moving, not by
+  // steering the sky. Rust-colored head, streak and tail, so the kind is
+  // known from the telegraph on.
+  const COMET_IRON_R = 19;                   // iron head radius (ice = COMET_R)
+  const COMET_IRON_SPEED = 0.8;              // iron speed vs ice
+  const COMET_IRON_BEND = 0.15;              // iron bend vs ice
+  const COMET_IRON_COIN = 0.25;              // iron tail-coin odds (ice = COMET_COIN_ODDS)
+  const COMET_IRON_COL = "#e0a583", COMET_IRON_TAIL = "#a58c7f", COMET_IRON_CORE = "#5e4034";
   // Comets are aimed so their straight path crosses the orb's row on-field,
   // and a comet that the bend carries into a planet glances off it instead
   // of leaving — every comet reaches the bottom.
@@ -628,32 +640,34 @@
   function cometSpeed() { return COMET_SPEED_START + (COMET_SPEED_MAX - COMET_SPEED_START) * difficulty(); }
   function cometMax() { return COMET_MAX_START + Math.round(2 * difficulty()); }
   function spawnComet() {
-    const sp = cometSpeed();
-    const coin = Math.random() < COMET_COIN_ODDS ? { taken: false } : null;
+    const iron = !!ORB().iron && Math.random() < ORB().iron;
+    const kind = iron ? "iron" : "ice";
+    const r = iron ? COMET_IRON_R : COMET_R;
+    const sp = cometSpeed() * (iron ? COMET_IRON_SPEED : 1);
+    const coin = Math.random() < (iron ? COMET_IRON_COIN : COMET_COIN_ODDS) ? { taken: false } : null;
+    const base = { r, kind, bend: iron ? COMET_IRON_BEND : 1, warn: COMET_WARN, tail: [], passed: false, coin };
     if (ORB().sides && Math.random() < ORB().sides) {
       // Crossfire: in from a side edge, high up, angled down across the field
       const side = Math.random() < 0.5 ? -1 : 1;          // -1 = enters from the left
       const a = randRange(COMET_SIDE_ANGLE[0], COMET_SIDE_ANGLE[1]);
-      comets.push({
-        x: side < 0 ? -COMET_R - 4 : W + COMET_R + 4,
+      comets.push(Object.assign(base, {
+        x: side < 0 ? -r - 4 : W + r + 4,
         y: randRange(H * COMET_SIDE_Y[0], H * COMET_SIDE_Y[1]),
-        vx: -side * Math.cos(a) * sp, vy: Math.sin(a) * sp, r: COMET_R,
+        vx: -side * Math.cos(a) * sp, vy: Math.sin(a) * sp,
         entry: side < 0 ? "left" : "right",
-        warn: COMET_WARN, tail: [], passed: false, coin,
-      });
+      }));
       return;
     }
     const x = randRange(WALL + 24, W - WALL - 24);
     // aim at a point on the orb's row that is comfortably on-field, then clamp
     // the tilt — the straight path always crosses the row inside the walls
     const tx = randRange(WALL + 40, W - WALL - 40);
-    const a = Math.max(-COMET_ANGLE, Math.min(COMET_ANGLE, Math.atan2(tx - x, ORB_Y + COMET_R + 4)));
-    comets.push({
-      x, y: -COMET_R - 4,
-      vx: Math.sin(a) * sp, vy: Math.cos(a) * sp, r: COMET_R,
+    const a = Math.max(-COMET_ANGLE, Math.min(COMET_ANGLE, Math.atan2(tx - x, ORB_Y + r + 4)));
+    comets.push(Object.assign(base, {
+      x, y: -r - 4,
+      vx: Math.sin(a) * sp, vy: Math.cos(a) * sp,
       entry: "top",
-      warn: COMET_WARN, tail: [], passed: false, coin,
-    });
+    }));
   }
   // Where the tail coin rides: a fixed distance behind the head along its motion.
   function cometCoinPos(c) {
@@ -674,7 +688,7 @@
     for (let i = comets.length - 1; i >= 0; i--) {
       const c = comets[i];
       if (c.warn > 0) { c.warn -= dt; continue; }        // telegraphing at the top edge
-      c.vx += gravSide * COMET_BEND * dt;                 // the twist: comets bend with your pull
+      c.vx += gravSide * COMET_BEND * (c.bend || 1) * dt; // the twist: comets bend with your pull (iron barely)
       c.x += c.vx * dt; c.y += c.vy * dt;
       // glance off a planet surface rather than leave the field
       if (c.x < WALL + c.r && c.vx < 0) { c.x = WALL + c.r; c.vx = -c.vx * COMET_BOUNCE; }
@@ -1929,8 +1943,10 @@
   function drawComets() {
     drawStars();
     drawPlanets();
-    const head = "#eef8ff";
     for (const c of comets) {
+      const iron = c.kind === "iron";
+      const head = iron ? COMET_IRON_COL : "#eef8ff";
+      const tailCol = iron ? COMET_IRON_TAIL : "#eef8ff";
       if (c.warn > 0) {
         // telegraph: the entry streak brightens as release nears; the head
         // peeks over the top edge and grows
@@ -1958,13 +1974,17 @@
       for (let i = 1; i < c.tail.length; i++) {
         const a = i / c.tail.length;
         ctx.save();
-        ctx.globalAlpha = a * 0.55;
-        ctx.strokeStyle = head; ctx.lineWidth = 1 + a * c.r * 1.1; ctx.lineCap = "round";
+        ctx.globalAlpha = a * (iron ? 0.4 : 0.55);
+        ctx.strokeStyle = tailCol; ctx.lineWidth = 1 + a * c.r * (iron ? 0.8 : 1.1); ctx.lineCap = "round";
         ctx.beginPath(); ctx.moveTo(c.tail[i - 1].x, c.tail[i - 1].y); ctx.lineTo(c.tail[i].x, c.tail[i].y); ctx.stroke();
         ctx.restore();
       }
       if (c.coin && !c.coin.taken) { const p = cometCoinPos(c); glowCircle(p.x, p.y, 7, "#ffd84d"); }
       glowCircle(c.x, c.y, c.r, head, true);
+      if (iron) {   // a dark heavy core so iron reads as mass, not light
+        ctx.fillStyle = COMET_IRON_CORE;
+        ctx.beginPath(); ctx.arc(c.x + c.r * 0.1, c.y + c.r * 0.1, c.r * 0.55, 0, TAU); ctx.fill();
+      }
     }
     // loose coins
     for (const o of bonuses) if (!o.taken) glowCircle(o.x, o.y, 7, "#ffd84d");
@@ -2935,7 +2955,7 @@
       rho: orb.rho, vrho: orb.vrho, theta: orb.theta, surge: surge ? surge.phase : null, horizon: horizonR(), rim: rimR(),
       debris: (debris || []).map((d) => ({ ang: d.ang, r: d.r, warn: d.warn, size: d.size })),
       eddies: eddies.map((e) => ({ x: e.x, y: e.y, r: e.r, type: e.type })),
-      comets: (comets || []).map((c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, r: c.r, warn: c.warn, entry: c.entry })),
+      comets: (comets || []).map((c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, r: c.r, warn: c.warn, entry: c.entry, kind: c.kind })),
       rain: bonuses.filter((o) => o.rain && !o.taken).length,
       bars: bars.map((b) => ({ y: b.y, d: b.d, gx: b.gapX, gw: b.gapW, key: b.key || 0 })),
     });

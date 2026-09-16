@@ -113,6 +113,7 @@
     15: { arp: [98.00, 116.54, 146.83, 196.00, 155.56, 146.83, 116.54, 103.83], roots: [49.00, 46.25, 49.00, 51.91], step: 160, type: "sawtooth", lp: 1250, gain: 0.11, bass: 0.30 }, // Anomalies V "Spring Tide" — churning Gm, heaving bass
     16: { arp: [164.81, 246.94, 293.66, 369.99, 440.00, 369.99, 293.66, 246.94], roots: [82.41, 82.41, 98.00, 73.42], step: 210, type: "triangle", lp: 1600, gain: 0.09, bass: 0.22 }, // Perihelion I "Shower" — glassy Em add9, high and falling
     17: { arp: [174.61, 261.63, 311.13, 349.23, 415.30, 349.23, 311.13, 261.63], roots: [87.31, 87.31, 103.83, 77.78], step: 185, type: "triangle", lp: 1700, gain: 0.09, bass: 0.22 }, // Perihelion II "Crossfire" — brisk Fm, lines crossing
+    18: { arp: [146.83, 174.61, 220.00, 293.66, 349.23, 293.66, 220.00, 174.61], roots: [73.42, 73.42, 87.31, 65.41], step: 200, type: "sawtooth", lp: 1300, gain: 0.09, bass: 0.26 }, // Perihelion III "Ice and Iron" — Dm, heavier sawtooth under a light arp
   };
   function trk() { return TRACKS[currentTrack] || TRACKS[1]; }
 

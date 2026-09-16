@@ -166,17 +166,17 @@
   // always scored inside exactly one world; the world is picked on the title
   // screen and persisted. See WORLDS.md.
   //   step: points per orbital          physics: world-wide multipliers
-  //   palette: planet/orb colors        mock: preview world (PREVIEW tag)
+  //   palette: planet/orb colors        mock: true → PREVIEW tag in the picker (none shipping now)
   const WORLDS = [
     { id: "origins", name: "ORIGINS", tagline: "One button. Two gravities.",
       step: 100, orbitals: ORIGINS,
       leaderboard: "tidal_high_scores", bestKey: "tidal-best", unlockKey: "tidal-unlocked" },
-    { id: "anomalies", name: "ANOMALIES", tagline: "Gravity itself is unstable here.", mock: true,
+    { id: "anomalies", name: "ANOMALIES", tagline: "Gravity itself is unstable here.",
       step: 100, orbitals: ANOMALIES,
       physics: { gravity: 0.85, gap: 1.12 },        // floatier pull, roomier gaps
       palette: { left: "#c77dff", right: "#5cf2c0" },
       leaderboard: "tidal_anomalies", bestKey: "tidal-best-anomalies", unlockKey: "tidal-unlocked-anomalies" },
-    { id: "perihelion", name: "PERIHELION", tagline: "Everything falls.", mock: true,
+    { id: "perihelion", name: "PERIHELION", tagline: "Everything falls.",
       step: 100, orbitals: PERIHELION,
       palette: { left: "#ff8c42", right: "#7fd7ff" },   // ember / ice — warm planets, cold comets
       leaderboard: "tidal_perihelion", bestKey: "tidal-best-perihelion", unlockKey: "tidal-unlocked-perihelion" },

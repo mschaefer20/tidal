@@ -1,6 +1,6 @@
 # Tidal Orbit — Worlds (the next gameplay direction)
 
-Status (2026-09-16): **three complete worlds as PREVIEW mocks on branch `worlds`, ready to push.** The world
+Status (2026-09-16): **three complete worlds on branch `worlds`, preview flags dropped, version 1.2.0 — ready for a TestFlight build.** The world
 model is implemented in `tidal/game.js`, the title screen has a world picker,
 and all five Anomalies orbitals are playable as a PREVIEW. Nothing here has
 shipped. Companion docs: `V1.2-ORBITALS.md` (how VI–X were designed),
@@ -405,6 +405,6 @@ its finale is reachable by far more players than Origins X.
 - [ ] Decide the open questions above; retune `FLUX_*`, `step`, `physics`.
 - [ ] Wire `gravMult()` into binary/arena physics as needed.
 - [ ] Create `tidal_anomalies` in App Store Connect (leaderboard set).
-- [ ] Remove `mock: true`; update How to Play and store listing copy.
-- [ ] Bump `sw.js` cache; Codemagic build; device playtest both worlds.
+- [x] Remove `mock: true` (2026-09-16); How to Play mentions worlds. Store listing copy still to update.
+- [x] `sw.js` cache bumped (v95); `ci/version.js` → **1.2.0** (1.1.1 is live; App Store Connect rejects new builds on a released version). Codemagic `ios-tidal` build from branch `worlds` → TestFlight.
 - [ ] Screenshots: extend `?shot` to accept a world.

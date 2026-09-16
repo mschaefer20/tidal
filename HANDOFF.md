@@ -62,8 +62,15 @@ Keyboard (browser only): Space/Enter flip, Esc/P pause.
   orbitals, Game Center leaderboard, RevenueCat IAP ($3.99 premium + 3 coin
   packs), continue-UX rework. iPhone-only, portrait. EU still excluded
   pending DSA trader-status completion.
-- **v1.1.1 — leaderboard resubmission in progress.** `ci/version.js` bumped
-  to 1.1.1 (single source of truth; both Codemagic workflows read it).
+- **v1.1.1 — shipped.** (Both stores live as of 2026-09; EU trader agreement enabled.)
+- **v1.2.0 — WORLDS, on branch `worlds`, heading to TestFlight (2026-09-16).**
+  `ci/version.js` = 1.2.0. Build with Codemagic workflow **`ios-tidal`**
+  (iOS only — `release-tidal` would also push an Android bundle to the Play
+  internal track), choosing branch `worlds` when starting the build; the
+  IPA lands in App Store Connect for TestFlight internal testing. Before
+  App Store submission: create Game Center boards `tidal_anomalies` +
+  `tidal_perihelion` (leaderboard set), store copy + screenshots for the
+  new worlds, then merge `worlds` → `main`.
 - **GOOGLE PLAY — live in testing on the colleague's Play account; the
   14-day closed-testing period has PASSED (as of 2026-08-12)**, so the app
   is eligible to apply for production. Combined Codemagic workflow

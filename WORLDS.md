@@ -277,6 +277,18 @@ coins fall in. Bait: `ROGUE_COINS` 3 coins orbit each rogue at `ROGUE_COIN_R`
 well is harmless. Keeps II's side entries and loose coins. Track 18.
 Test: `?world=perihelion&orbital=3`.
 
+### Perihelion IV — "Sungrazers" (mock)
+
+The planets become slingshots. An ice comet that reaches the **active**
+planet whips around it and is flung back across the field at
+`GRAZE_WHIP_START` 1.15× → `GRAZE_WHIP_MAX` 1.45× its arriving sideways speed
+(capped at `GRAZE_VMAX` 560 px/s), flaring hot for `GRAZE_HOT` 1 s: swollen
+pale-gold head, brighter tail, and an expanding ring in the planet's color at
+the point of the whip. The inactive planet still just glances
+(`COMET_BOUNCE`), so **your flip decides which wall is hot**. Rogues are too
+massive to whip and glance as before. Keeps side entries (which feed the
+walls), rogues at 0.2, loose coins. Track 19. Test: `?world=perihelion&orbital=4`.
+
 Shelved: "Ice and Iron" (same day) — a second comet kind that merely bent
 less. User: "I don't really love the iron concept … maybe they are like
 little gravity well comets." It was a passive read in a world whose identity

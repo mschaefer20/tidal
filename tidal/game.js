@@ -149,10 +149,12 @@
   //   sides: fraction of comets that enter from a side edge (COMET_SIDE_*)
   //   coinRain: [min,max] s between loose coins drifting down the open sky
   //   rogue: fraction of comets that are ROGUES — heavy, slow, with a gravity well (ROGUE_*)
+  //   graze: the active planet whips comets back across the field (GRAZE_*)
   const PERIHELION = [
     { n: 1, dim: "2d", comets: true, track: 16 },                   // Shower — dense, telegraphed, bending comets
     { n: 2, dim: "2d", comets: true, sides: 0.5, coinRain: [3.5, 6.5], track: 17 }, // Crossfire — side entries cross above you and come down; loose coins drift by
     { n: 3, dim: "2d", comets: true, sides: 0.5, rogue: 0.33, coinRain: [4.0, 7.0], track: 18 }, // Rogues — heavy comets whose well pulls you, the sky, and the coins
+    { n: 4, dim: "2d", comets: true, sides: 0.5, rogue: 0.2, graze: true, coinRain: [4.0, 7.0], track: 19 }, // Sungrazers — the ACTIVE planet slingshots comets back across the field
   ];
 
   // ---- Worlds ---------------------------------------------------------------
@@ -221,6 +223,16 @@
   const ROGUE_COINS = 3;                     // coins orbiting inside the well
   const ROGUE_COIN_R = 58, ROGUE_COIN_SPIN = 1.6;   // orbit radius (px) and rate (rad/s)
   const ROGUE_COL = "#c25a3f", ROGUE_TAIL = "#7a4a3f", ROGUE_CORE = "#2a1410", ROGUE_RING = "rgba(255,140,100,";
+  // Sungrazers (IV): the planets become slingshots. An ice comet that reaches
+  // the ACTIVE planet whips around it and is flung back across the field
+  // faster than it arrived, flaring hot; the inactive planet still just
+  // glances (COMET_BOUNCE). So your flip decides which wall is hot. Rogues
+  // are too massive to whip — they glance as before.
+  const GRAZE_WHIP_START = 1.15;             // returning speed vs arriving, at the start of the ramp
+  const GRAZE_WHIP_MAX = 1.45;               // …at full ramp
+  const GRAZE_VMAX = 560;                    // px/s cap on a whipped comet's sideways speed
+  const GRAZE_HOT = 1.0;                     // s a whipped comet stays flared
+  const GRAZE_COL = "#ffd9a0";               // hot head / flare color
   // Comets are aimed so their straight path crosses the orb's row on-field,
   // and a comet that the bend carries into a planet glances off it instead
   // of leaving — every comet reaches the bottom.
@@ -732,9 +744,23 @@
       c.vx += gravSide * COMET_BEND * (c.bend || 1) * dt; // the twist: comets bend with your pull (rogues barely)
       if (ORB().rogue && c.kind !== "rogue") roguePullBody(c, dt);   // ice curves into a rogue's well
       c.x += c.vx * dt; c.y += c.vy * dt;
-      // glance off a planet surface rather than leave the field
-      if (c.x < WALL + c.r && c.vx < 0) { c.x = WALL + c.r; c.vx = -c.vx * COMET_BOUNCE; }
-      else if (c.x > W - WALL - c.r && c.vx > 0) { c.x = W - WALL - c.r; c.vx = -c.vx * COMET_BOUNCE; }
+      // glance off a planet surface rather than leave the field — or, on
+      // Sungrazers, WHIP around the active planet and come back hot
+      const hitL = c.x < WALL + c.r && c.vx < 0, hitR = c.x > W - WALL - c.r && c.vx > 0;
+      if (hitL || hitR) {
+        c.x = hitL ? WALL + c.r : W - WALL - c.r;
+        const active = hitL ? gravSide < 0 : gravSide > 0;
+        if (ORB().graze && c.kind !== "rogue" && active) {
+          const whip = GRAZE_WHIP_START + (GRAZE_WHIP_MAX - GRAZE_WHIP_START) * difficulty();
+          c.vx = Math.max(-GRAZE_VMAX, Math.min(GRAZE_VMAX, -c.vx * whip));
+          c.hot = GRAZE_HOT;
+          c.flare = { x: c.x, y: c.y };
+          sfx("laser"); buzz("light");
+        } else {
+          c.vx = -c.vx * COMET_BOUNCE;
+        }
+      }
+      if (c.hot > 0) c.hot = Math.max(0, c.hot - dt);
       c.tail.push({ x: c.x, y: c.y });
       if (c.tail.length > COMET_TAIL) c.tail.shift();
       // only the head kills
@@ -1996,8 +2022,9 @@
     drawPlanets();
     for (const c of comets) {
       const rogue = c.kind === "rogue";
-      const head = rogue ? ROGUE_COL : "#eef8ff";
-      const tailCol = rogue ? ROGUE_TAIL : "#eef8ff";
+      const hot = (c.hot || 0) / GRAZE_HOT;                 // 1 right after a whip → 0
+      const head = rogue ? ROGUE_COL : hot > 0 ? GRAZE_COL : "#eef8ff";
+      const tailCol = rogue ? ROGUE_TAIL : hot > 0 ? GRAZE_COL : "#eef8ff";
       if (c.warn > 0) {
         // telegraph: the entry streak brightens as release nears; the head
         // peeks over the top edge and grows
@@ -2025,14 +2052,29 @@
       for (let i = 1; i < c.tail.length; i++) {
         const a = i / c.tail.length;
         ctx.save();
-        ctx.globalAlpha = a * (rogue ? 0.35 : 0.55);
-        ctx.strokeStyle = tailCol; ctx.lineWidth = 1 + a * c.r * (rogue ? 0.6 : 1.1); ctx.lineCap = "round";
+        ctx.globalAlpha = a * (rogue ? 0.35 : 0.55 + 0.35 * hot);
+        ctx.strokeStyle = tailCol; ctx.lineWidth = 1 + a * c.r * (rogue ? 0.6 : 1.1 + 0.5 * hot); ctx.lineCap = "round";
         ctx.beginPath(); ctx.moveTo(c.tail[i - 1].x, c.tail[i - 1].y); ctx.lineTo(c.tail[i].x, c.tail[i].y); ctx.stroke();
         ctx.restore();
       }
       if (rogue) drawRogueWell(c);
       if (c.coin && !c.coin.taken) { const p = cometCoinPos(c); glowCircle(p.x, p.y, 7, "#ffd84d"); }
-      glowCircle(c.x, c.y, c.r, head, true);
+      if (hot > 0) {
+        // whip flare at the wall: an expanding ring in the planet's color
+        if (c.flare) {
+          const f = 1 - hot;
+          ctx.save();
+          ctx.globalAlpha = 0.7 * (1 - f);
+          ctx.strokeStyle = c.flare.x < W / 2 ? colLeft() : colRight();
+          ctx.lineWidth = 3 * (1 - f) + 1;
+          ctx.shadowBlur = 14; ctx.shadowColor = ctx.strokeStyle;
+          ctx.beginPath(); ctx.arc(c.flare.x, c.flare.y, 12 + 70 * f, 0, TAU); ctx.stroke();
+          ctx.restore();
+        }
+        glowCircle(c.x, c.y, c.r * (1 + 0.35 * hot), head, true);   // swollen, flaring head
+      } else {
+        glowCircle(c.x, c.y, c.r, head, true);
+      }
       if (rogue) {   // a near-black core: mass, not light
         ctx.fillStyle = ROGUE_CORE;
         ctx.beginPath(); ctx.arc(c.x, c.y, c.r * 0.62, 0, TAU); ctx.fill();
@@ -3035,7 +3077,7 @@
       rho: orb.rho, vrho: orb.vrho, theta: orb.theta, surge: surge ? surge.phase : null, horizon: horizonR(), rim: rimR(),
       debris: (debris || []).map((d) => ({ ang: d.ang, r: d.r, warn: d.warn, size: d.size })),
       eddies: eddies.map((e) => ({ x: e.x, y: e.y, r: e.r, type: e.type })),
-      comets: (comets || []).map((c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, r: c.r, warn: c.warn, entry: c.entry, kind: c.kind })),
+      comets: (comets || []).map((c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, r: c.r, warn: c.warn, entry: c.entry, kind: c.kind, hot: c.hot || 0 })),
       rain: bonuses.filter((o) => o.rain && !o.taken).length,
       rogueAx: ORB().rogue ? rogueAx() : 0, orbitCoins: bonuses.filter((o) => o.host && !o.taken).length,
       bars: bars.map((b) => ({ y: b.y, d: b.d, gx: b.gapX, gw: b.gapW, key: b.key || 0 })),

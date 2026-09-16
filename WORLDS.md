@@ -144,10 +144,38 @@ as Origins I–V.
 | # | Name | Form | Adds | Notes |
 | --- | --- | --- | --- | --- |
 | I | Flux | 2D pendulum | the breath itself | BUILT (mock) |
-| II | Undertow | 3D tunnel | tunnel speed breathes with the pull | teaches flux at speed |
-| III | Riptide | 2D binary wells | the wells' sway amplitude breathes | needs `gravMult()` in `updateBinary` |
-| IV | Magnetar | 2D or 3D | charged gaps from `orbitals-11-20` | already built + playtested; retune spacing |
+| II | Slack Water | 2D pendulum | the tide bottoms out: coast, brake with taps, coin bursts at each trough | BUILT (mock) — user chose 2D over a 3D "Undertow" |
+| III | Eddies | 2D pendulum | local tides: surge / void / invert discs scrolling with the field | BUILT (mock) |
+| IV | Magnetar or Riptide | 2D | charged gaps from `orbitals-11-20`, or binary wells whose sway breathes | Magnetar is built + playtested; Riptide needs `gravMult()` in `updateBinary` |
 | V | Slack Tide | arena | black-hole pull breathes; surges land at high tide, debris pauses at low | arena reads `gravMult()` |
+
+(3D is deliberately avoided in Anomalies for now, per the user. "Undertow" —
+tunnel speed breathing with the pull — stays on the shelf.)
+
+### Anomalies II — "Slack Water" (mock)
+
+Same breath, deeper wave. The pull swings `SLACK_MIN` 0.08 … `SLACK_MAX` 1.35
+and the wave is flattened (`SLACK_SHAPE` 0.6) so the extremes hold for a beat.
+At slack the orb **coasts**: a tap can't pull, it only sheds momentum, so
+rapid taps become a brake. Read-out: the wall glow drops to a quarter, the
+halo shrinks, and a "SLACK WATER" label fades in at the top. Once per trough
+`SLACK_COINS` coins fan into the row above the orb, centered on it, never
+inside a bar — the reward for riding the slack. Test: `?world=anomalies&orbital=2`.
+
+### Anomalies III — "Eddies" (mock)
+
+Local tides. Translucent discs (`EDDY_R_MIN`–`EDDY_R_MAX` px) spawn between
+barrier rows and scroll with the field, at most `EDDY_MAX` on screen. Inside:
+**surge** ×2 pull (gold), **void** ×0 (a dark hole), **invert** reverses the
+pull (the disc shows the planet colors swapped; the orb's color and the lit
+planet flip while inside). Spawn odds in `EDDY_TYPES`. The global breath runs
+underneath at `fluxAmp` 0.22. Test: `?world=anomalies&orbital=3`.
+
+Playtest question for III: an eddy crosses the orb's row in ~0.4–1.0 s at
+current scroll speeds, so the local tide is a jolt rather than a zone. If it
+reads as random, options are taller (elliptical) discs, a slower relative
+scroll for eddies, or applying the eddy once the orb is inside its x-span and
+the disc is within one row.
 
 Thresholds at 60: 60/120/180/240 — a full Anomalies run is ~300 points, so
 its finale is reachable by far more players than Origins X.

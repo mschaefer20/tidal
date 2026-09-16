@@ -124,9 +124,14 @@
   // tide rises and falls). Every Anomalies orbital carries it on top of its
   // own mechanic; orbital I is the plain pendulum under the breathing pull so
   // the twist is learned clean before anything is stacked on it.
-  //   flux: gravity oscillation (FLUX_* tunables)   track: fx.js music id
+  //   flux: gravity oscillation (FLUX_* tunables; fluxAmp overrides FLUX_AMP)
+  //   slack: deepened wave — low tide bottoms out near zero (SLACK_*)
+  //   eddies: local-tide discs scrolling with the field (EDDY_*)
+  //   track: fx.js music id
   const ANOMALIES = [
     { n: 1, dim: "2d", flux: true, track: 11 },                    // Flux — pendulum, breathing gravity
+    { n: 2, dim: "2d", flux: true, slack: true, track: 12 },       // Slack Water — the tide bottoms out; coast + brake
+    { n: 3, dim: "2d", flux: true, eddies: true, fluxAmp: 0.22, track: 13 }, // Eddies — local surges, voids, inversions
   ];
 
   // ---- Worlds ---------------------------------------------------------------
@@ -157,6 +162,32 @@
   const FLUX_AMP = 0.35;             // ±35% gravity at the extremes
   const FLUX_RAMP = 4.0;             // s for the amplitude to reach full
 
+  // ---- Anomalies II "Slack Water": the tide bottoms out ---------------------
+  // Same breath, deeper wave: the pull swings SLACK_MIN…SLACK_MAX, and the
+  // wave is flattened (SLACK_SHAPE < 1) so the extremes hold for a beat. At
+  // slack the orb COASTS — a tap can't pull, it only sheds momentum, so rapid
+  // taps become a brake. Walls go dark and a label fades in so the trough is
+  // read, not guessed. Each trough bursts coins into the orb's reach: the
+  // reward for riding the slack instead of fighting it.
+  const SLACK_MIN = 0.08;            // pull at dead low tide (≈ coasting)
+  const SLACK_MAX = 1.35;            // pull at high tide
+  const SLACK_SHAPE = 0.6;           // <1 flattens the wave toward its extremes
+  const SLACK_G = 0.30;              // pull below which the tide counts as slack
+  const SLACK_COINS = 3;             // coins per trough burst
+
+  // ---- Anomalies III "Eddies": local tides -----------------------------------
+  // Translucent discs scroll down with the field, between barrier rows. Inside
+  // one the tide is LOCAL: a SURGE multiplies the pull, a VOID kills it, an
+  // INVERT reverses it (the orb's color and the lit planet flip to show the
+  // effective pull). They enter from the top, so they're read like weather —
+  // choose to thread them or steer around them. The global breath still runs
+  // underneath at a gentler amplitude (fluxAmp on the orbital).
+  const EDDY_R_MIN = 52, EDDY_R_MAX = 78;     // disc radius
+  const EDDY_EVERY_MIN = 2.2, EDDY_EVERY_MAX = 3.6;   // s between discs
+  const EDDY_MAX = 2;                // discs sharing the screen
+  const EDDY_SURGE = 2.0;            // pull multiplier inside a surge
+  const EDDY_TYPES = [["surge", 0.45], ["void", 0.35], ["invert", 0.20]];   // spawn odds
+
   // The active orbital's entry (or orbital n's, when given).
   function ORB(n) { return ORBITALS[(n || orbital) - 1] || ORBITALS[0]; }
   // Score to reach orbital n. Dev mode spaces them 7 apart (7/14/21/28);
@@ -164,11 +195,32 @@
   function orbitalThreshold(n) { return n <= 1 ? 0 : (devMode ? 7 : world.step) * (n - 1); }
   // Current flux multiplier (1 when the orbital has no flux).
   function fluxNow() {
-    if (!ORB().flux) return 1;
-    return 1 + FLUX_AMP * Math.min(1, fluxTime / FLUX_RAMP) * Math.sin(TAU * fluxTime / FLUX_PERIOD);
+    const o = ORB();
+    if (!o.flux) return 1;
+    const ramp = Math.min(1, fluxTime / FLUX_RAMP);
+    const s = Math.sin(TAU * fluxTime / FLUX_PERIOD);
+    if (o.slack) {
+      // flattened wave between SLACK_MIN and SLACK_MAX, eased in from 1
+      const sh = Math.sign(s) * Math.pow(Math.abs(s), SLACK_SHAPE);
+      const g = (SLACK_MAX + SLACK_MIN) / 2 + (SLACK_MAX - SLACK_MIN) / 2 * sh;
+      return 1 + ramp * (g - 1);
+    }
+    return 1 + (o.fluxAmp || FLUX_AMP) * ramp * s;
   }
-  // World-wide pendulum gravity multiplier: world physics × flux.
-  function gravMult() { return ((world.physics && world.physics.gravity) || 1) * fluxNow(); }
+  function inSlack() { return !!ORB().slack && fluxNow() < SLACK_G; }
+  // Local tide at the orb's position: the first eddy containing it wins.
+  function eddyMult() {
+    if (!ORB().eddies) return 1;
+    for (const e of eddies) {
+      const dx = orb.x - e.x, dy = orb.y - e.y;
+      if (dx * dx + dy * dy < e.r * e.r) return e.type === "surge" ? EDDY_SURGE : e.type === "void" ? 0 : -1;
+    }
+    return 1;
+  }
+  // Which way the orb is REALLY being pulled (an inverting eddy flips it).
+  function effSide() { return gravSide * (eddyMult() < 0 ? -1 : 1); }
+  // World-wide pendulum gravity multiplier: world physics × flux × local eddy.
+  function gravMult() { return ((world.physics && world.physics.gravity) || 1) * fluxNow() * eddyMult(); }
 
   // Speed ramps over the FIRST DIFF_RAMP points of each orbital, then holds —
   // so it resets to slow at the start of every orbital.
@@ -189,7 +241,7 @@
   // Worlds may recolor the pair (Anomalies: violet / mint).
   function colLeft() { return (world.palette && world.palette.left) || ORB_LEFT; }
   function colRight() { return (world.palette && world.palette.right) || ORB_RIGHT; }
-  function orbColor() { return gravSide > 0 ? colRight() : colLeft(); }
+  function orbColor() { return effSide() > 0 ? colRight() : colLeft(); }
 
   // Global pace. NORMAL is the shipped play speed (75% of the old baseline).
   // DEV_SLOW is a toggleable slow-motion for development/testing.
@@ -330,6 +382,8 @@
   let arenaTime, debris, coins, surge, nextSurge, nextDebris, escaped;   // Orbital 5 arena
   let nova, nextNova;           // Orbital 10: active shockwave + schedule
   let fluxTime;                 // Anomalies: flux clock (gravity breath)
+  let slackBurst;               // Anomalies II: this trough's coin burst fired
+  let eddies, nextEddy;         // Anomalies III: local-tide discs + spawn timer
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
 
   // Dev: open with ?3d (or ?mode=3d) to start straight in the 3D mode,
@@ -437,7 +491,8 @@
     gpR = { x: G3_RIGHT.x, y: G3_RIGHT.y };
     arenaTime = 0; surge = null; nextSurge = SURGE_EVERY;
     nextDebris = DEBRIS_FIRST; debris = []; coins = []; escaped = false;
-    fluxTime = 0;
+    fluxTime = 0; slackBurst = false;
+    eddies = []; nextEddy = randRange(EDDY_EVERY_MIN, EDDY_EVERY_MAX);
     if (mode === "3d") build3DField(); else { hide3D(); build2DField(); }
     if (window.TidalFX) TidalFX.setOrbital(ORB(orbital).track || orbital);
     scoreEl.textContent = score;
@@ -469,7 +524,7 @@
     countdown = COUNTDOWN_TIME;   // wait + countdown before the new orbital begins
     // clean, centered start for the new orbital
     orb.x = W / 2;
-    orb.y = n === 3 ? H / 2 : ORB_Y;
+    orb.y = ORB(n).binary ? H / 2 : ORB_Y;
     orb.vx = 0;
     orb.vy = 0;
     if (ORB(n).binary || ORB(n).drift) g3Time = 0;
@@ -479,6 +534,7 @@
     nextWormhole = nextWormholeDelay();
     strings = []; nextStr3 = randRange(STR3_EVERY_MIN, STR3_EVERY_MAX);
     fluxTime = 0;                // flux opens at neutral tide, amplitude eases in
+    slackBurst = false; eddies = []; nextEddy = randRange(EDDY_EVERY_MIN, EDDY_EVERY_MAX);
     if (mode === "3d") {
       depthSpeed = DEPTH_SPEED_START;
       intro = 0;
@@ -829,6 +885,48 @@
 
     if (orbitalHasWormholes()) updateWormholes(dt, dy);
     if (ORB().strings) updateStrings(dt);
+    if (ORB().slack) updateSlack();
+    if (ORB().eddies) updateEddies(dt, dy);
+  }
+
+  // ---- Anomalies II: slack-water coin bursts ---------------------------------
+  // Once per trough, fan SLACK_COINS coins into the row just above the orb,
+  // centered on where it is — reachable while coasting, never inside a bar.
+  function updateSlack() {
+    if (!inSlack()) { if (fluxNow() > 0.6) slackBurst = false; return; }
+    if (slackBurst) return;
+    slackBurst = true;
+    for (let i = 0; i < SLACK_COINS; i++) {
+      const x = Math.max(WALL + 14, Math.min(W - WALL - 14, orb.x + (i - (SLACK_COINS - 1) / 2) * 46));
+      let y = ORB_Y - 80 - i * 28;
+      while (bars.some((b) => Math.abs(b.y + BAR_TH / 2 - y) < BAR_TH + 12)) y -= 30;
+      bonuses.push({ x, y, taken: false });
+    }
+    sfx("shift");
+  }
+
+  // ---- Anomalies III: eddies -------------------------------------------------
+  function spawnEddy() {
+    const r = randRange(EDDY_R_MIN, EDDY_R_MAX);
+    const ref = bars.length ? bars[0].y : -40;       // barrier grid phase
+    let y = ref - BAR_SPACING / 2;                   // between rows
+    while (y > -r) y -= BAR_SPACING;
+    while (y <= -r - BAR_SPACING) y += BAR_SPACING;
+    if (eddies.some((e) => Math.abs(e.y - y) < BAR_SPACING / 2)) return false;   // one per row
+    const x = randRange(WALL + r * 0.5, W - WALL - r * 0.5);
+    let p = Math.random(), type = EDDY_TYPES[0][0];
+    for (const [t, w] of EDDY_TYPES) { if (p < w) { type = t; break; } p -= w; }
+    eddies.push({ x, y, r, type, age: 0, spin: Math.random() < 0.5 ? -1 : 1 });
+    return true;
+  }
+  function updateEddies(dt, dy) {
+    for (const e of eddies) { e.y += dy; e.age += dt; }
+    eddies = eddies.filter((e) => e.y < H + e.r + 10);
+    nextEddy -= dt;
+    if (nextEddy <= 0 && eddies.length < EDDY_MAX) {
+      if (spawnEddy()) nextEddy = randRange(EDDY_EVERY_MIN, EDDY_EVERY_MAX);
+      else nextEddy = 0.3;                            // row taken — retry shortly
+    }
   }
 
   // ---- Orbital 8 "Cosmic Strings" ------------------------------------------
@@ -1388,6 +1486,7 @@
   function draw2D() {
     drawPlanets();
     if (ORB().flux) drawFlux();
+    if (ORB().eddies) for (const e of eddies) drawEddy(e);
 
     if (orbitalHasWormholes()) for (const w of wormholes) drawWormhole(w);
 
@@ -1415,6 +1514,60 @@
     // orb (color shows which way it's being pulled)
     glowCircle(orb.x, orb.y, ORB_R, orbColor(), true);
     if (ORB().flux) drawFluxHalo();
+    if (ORB().slack) drawSlack();
+  }
+
+  // Anomalies II: the trough label — fades in as the pull dies, out as it returns.
+  function drawSlack() {
+    const g = fluxNow();
+    const a = Math.max(0, Math.min(1, (SLACK_G + 0.15 - g) / 0.25));
+    if (a <= 0.01) return;
+    ctx.save();
+    ctx.globalAlpha = a * 0.7;
+    ctx.fillStyle = "#dfe3ff";
+    ctx.font = "600 13px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("S L A C K   W A T E R", W / 2, 58);
+    ctx.restore();
+  }
+
+  // Anomalies III: one eddy — a translucent disc with a spinning ring. Surge is
+  // warm gold, void is a dark hole in the tide, invert shows the two planet
+  // colors SWAPPED across the disc. The ring lights up while the orb is inside.
+  function drawEddy(e) {
+    const inside = (orb.x - e.x) ** 2 + (orb.y - e.y) ** 2 < e.r * e.r;
+    const gold = "#ffd27a", grey = "#9aa0d0";
+    ctx.save();
+    if (e.type === "invert") {
+      ctx.globalAlpha = 0.16;
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.r, Math.PI / 2, Math.PI * 1.5); ctx.closePath();
+      ctx.fillStyle = colRight(); ctx.fill();                        // left half wears the RIGHT color
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.r, -Math.PI / 2, Math.PI / 2); ctx.closePath();
+      ctx.fillStyle = colLeft(); ctx.fill();
+    } else {
+      const g = ctx.createRadialGradient(e.x, e.y, e.r * 0.15, e.x, e.y, e.r);
+      if (e.type === "surge") { g.addColorStop(0, "rgba(255,210,122,0.30)"); g.addColorStop(1, "rgba(255,210,122,0.04)"); }
+      else { g.addColorStop(0, "rgba(2,3,10,0.85)"); g.addColorStop(1, "rgba(2,3,10,0.25)"); }
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, TAU); ctx.fill();
+    }
+    // spinning dashed ring (direction = spin; void rings crawl slowly)
+    const col = e.type === "surge" ? gold : e.type === "void" ? grey : "#ffffff";
+    const rot = e.age * (e.type === "void" ? 0.6 : 1.8) * e.spin;
+    ctx.translate(e.x, e.y); ctx.rotate(rot);
+    ctx.globalAlpha = inside ? 0.95 : 0.55;
+    ctx.strokeStyle = col; ctx.lineWidth = inside ? 3 : 2;
+    if (inside) { ctx.shadowBlur = 16; ctx.shadowColor = col; }
+    ctx.setLineDash(e.type === "invert" ? [10, 8] : [5, 9]);
+    ctx.beginPath(); ctx.arc(0, 0, e.r, 0, TAU); ctx.stroke();
+    // inner swirl arcs (the current)
+    ctx.setLineDash([]);
+    ctx.globalAlpha = inside ? 0.8 : 0.4;
+    ctx.lineWidth = 1.5;
+    for (let k = 0; k < 2; k++) {
+      ctx.beginPath(); ctx.arc(0, 0, e.r * (0.35 + k * 0.25), k * 2.2, k * 2.2 + 2.6); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   // ---- Anomalies "Flux" rendering ------------------------------------------
@@ -1422,9 +1575,10 @@
   // high tide and all but vanishes at low tide (gravity is global, so both
   // walls breathe together), and a halo around the orb swells with the pull.
   function drawFlux() {
-    const t = (fluxNow() - 1) / FLUX_AMP;            // -1 low tide … +1 high tide
+    const t = Math.max(-1, Math.min(1, (fluxNow() - 1) / FLUX_AMP));   // -1 low tide … +1 high tide
     const wgl = 34 + 46 * Math.max(0, t);
-    const a = 0.06 + 0.16 * (t + 1) / 2;
+    const a = (0.06 + 0.16 * (t + 1) / 2) * (inSlack() ? 0.25 : 1);    // slack: walls go dark
+    const es = effSide();
     for (const side of [-1, 1]) {
       const x0 = side < 0 ? WALL : W - WALL;
       const col = side < 0 ? colLeft() : colRight();
@@ -1432,14 +1586,14 @@
       g.addColorStop(0, col);
       g.addColorStop(1, "rgba(5,6,15,0)");
       ctx.save();
-      ctx.globalAlpha = a * ((side < 0 ? gravSide < 0 : gravSide > 0) ? 1.6 : 1);
+      ctx.globalAlpha = a * ((side < 0 ? es < 0 : es > 0) ? 1.6 : 1);
       ctx.fillStyle = g;
       if (side < 0) ctx.fillRect(x0, 0, wgl, H); else ctx.fillRect(x0 - wgl, 0, wgl, H);
       ctx.restore();
     }
   }
   function drawFluxHalo() {
-    const t = (fluxNow() - 1) / FLUX_AMP;
+    const t = Math.max(-1, Math.min(1, (fluxNow() - 1) / FLUX_AMP));
     ctx.save();
     ctx.globalAlpha = 0.18 + 0.22 * (t + 1) / 2;
     ctx.strokeStyle = orbColor();
@@ -1813,8 +1967,9 @@
   function drawPlanets() {
     // Left planet (pink) and right planet (cyan) anchored off the edges.
     const pr = 150;
-    planet(-pr + WALL - 2, H / 2, pr, colLeft(), gravSide < 0);
-    planet(W + pr - WALL + 2, H / 2, pr, colRight(), gravSide > 0);
+    const side = effSide();
+    planet(-pr + WALL - 2, H / 2, pr, colLeft(), side < 0);
+    planet(W + pr - WALL + 2, H / 2, pr, colRight(), side > 0);
   }
 
   function planet(cx, cy, r, color, active) {
@@ -2359,7 +2514,8 @@
   if (params.has("probe")) {
     window.TidalProbe = () => ({
       running, score, orbital, world: world.id, mode, gravSide, countdown,
-      x: orb.x, vx: orb.vx, y: orb.y, flux: fluxNow(),
+      x: orb.x, vx: orb.vx, y: orb.y, flux: fluxNow(), grav: gravMult(), slack: inSlack(),
+      eddies: eddies.map((e) => ({ x: e.x, y: e.y, r: e.r, type: e.type })),
       bars: bars.map((b) => ({ y: b.y, d: b.d, gx: b.gapX, gw: b.gapW })),
     });
   }

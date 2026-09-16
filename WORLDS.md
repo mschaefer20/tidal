@@ -147,7 +147,7 @@ as Origins I–V.
 | II | Eddies | 2D pendulum | local tides: surge / void / drift / bounty / invert discs scrolling with the field | BUILT (mock) — user: "I like the eddies" |
 | III | Twin Tides | 2D pendulum | the two planets breathe half a cycle apart; the pull you feel is the tide of the planet you're falling toward | BUILT (mock) |
 | IV | Magnetar | 2D pendulum | charged gates (ported from `orbitals-11-20`) under twin tides — the color you need is the tide that helps you | BUILT (mock) |
-| V | Maelstrom | arena | the black hole's pull breathes; debris falls harder at high tide; surges wait for the swell and land on high tide | BUILT (mock) |
+| V | Spring Tide | arena | the shoreline moves: horizon rides the left tide, rim rides the right; tide pockets surface in the band; surges land on high water | BUILT (mock) — replaced "Maelstrom", which the user found too close to Origins V |
 
 Thresholds at step 60: II 60 · III 120 · IV 180 · V 240.
 
@@ -196,15 +196,74 @@ charged ones, after `KEY_FIRST` 2 free gates at entry. Runs under twin tides,
 so the color you need and the tide that helps you get there are the same read.
 Test: `?world=anomalies&orbital=4`.
 
-### Anomalies V — "Maelstrom" (mock)
+### Anomalies V — "Spring Tide" (mock)
 
-The Origins V arena under the tide. The radial pull is multiplied by
-`gravMult()` (world physics × breath), debris falls harder at high tide, the
-accretion glow breathes, and gravity surges WAIT for the swell
-(`MAEL_SURGE_T` 0.5 on the tide read-out) so they always land on high tide —
-a surge is telegraphed twice, by the glow and by the tide you were already
-reading. Scoring is the standard arena rule (asteroids +1, coins +5 + wallet).
-Test: `?world=anomalies&orbital=5`.
+The finale stacks the world's ideas in polar form. **Twin Tides (III) become
+the shoreline:** the event horizon rides the left tide and swells from 30 to
+`SPRING_HORIZON_MAX` 88 px at high water; the rim rides the right tide and
+tightens from 196 to `SPRING_RIM_MIN` 164 px, half a cycle apart. The safe
+band therefore slides in and out every three seconds and you ride it. Dashed
+rings mark the horizon's high-water line and the rim's low-water line so the
+extremes are always readable. **Eddies (II) become tide pockets:** one
+surge / void / invert disc at a time surfaces in the always-safe part of the
+band for `SPRING_EDDY_LIFE` 6.5 s, fading over its last second; an inverting
+pocket flips the pull indicator and the orb's color. **Flux (I):** the radial
+pull, the debris fall, and the accretion glow follow the horizon's tide, and
+gravity surges wait for high water (`MAEL_SURGE_T`). Coins spawn only inside
+the always-safe band. Standard arena scoring. Test: `?world=anomalies&orbital=5`.
+
+Shelved first draft ("Maelstrom", same day): the Origins V arena with only the
+pull breathing and surges on high tide. User: "5 is the same." It was — the
+band never moved, so it played like Origins V with a slower rhythm.
+
+## World three candidate — "Comets" (brainstorm, not built)
+
+User's brief: a world where you avoid comets instead of gates.
+
+**Identity:** *everything falls.* No barriers at all. The pendulum, the two
+planets and the one button are unchanged; the field is open sky and the
+hazards are bodies with momentum — comets streaking through with glowing
+heads and long tails. Because nothing is fixed, the read changes from
+"where is the gap" to "where will that be in a second."
+
+**Rules that keep it fair (carry the Origins pillars):**
+
+- Every comet is telegraphed: its path is drawn as a faint streak for
+  ~0.6 s before the head enters, the way strings lock on in Origins VIII.
+- Only the head kills. The tail is light: harmless, and where the coins ride
+  ("catch the tail" is the reward for cutting close).
+- Score: +1 per comet whose head passes below the orb's row; coins +5.
+- Spawn rate and speed ramp with the usual per-orbital `difficulty()`.
+
+**Signature twist (the thing every orbital shares):** *the planets pull the
+comets too.* A comet's path bends toward whichever planet is active — so
+your tap steers the sky as well as the orb. Flip to swing left and the
+incoming comet curves left with you. It is the one-button rule turned
+outward, and it is unique to a world with no gates to hide behind. Introduce
+it gently (orbital I has straight comets; the bend appears in II and grows).
+
+**Proposed ladder (2D only, like Anomalies):**
+
+| # | Name | Adds |
+| --- | --- | --- |
+| I | Shower | straight, vertical comets, one at a time, long telegraph |
+| II | Crossfire | comets enter diagonally from both sides; paths cross; the gravity bend begins (small) |
+| III | Fragments | a comet splits into two or three shards at a marked break point; you read the fan |
+| IV | Sungrazers | full bend: comets whip around the active planet and come back across the field |
+| V | Perihelion | arena finale: comets rain into the black hole from the rim; you thread the streaks while the sweep carries you |
+
+Alternative world names: Comets (plain, what the user said), Perihelion,
+Kuiper, Long Night. Palette: ember `#ff8c42` / ice `#7fd7ff` — warm planets,
+cold comets, so a comet head reads instantly against either wall.
+
+**Build notes:** a comet is `{x, y, vx, vy, r, tail[]}`; per frame integrate
+with `GRAVITY_COMET × toward-active-planet` when the orbital has the bend
+flag, record the tail, kill on head–orb distance. Telegraph = draw the
+integrated path ahead for 0.6 s at spawn. Reuses the world model, palette
+hooks, per-world leaderboard and Start From unchanged; new code is one update
+function, one draw function, and a spawn table — roughly the size of the
+eddies module. Estimated smaller than Anomalies I–V combined, since there is
+no bar/gap system to integrate with.
 
 Playtest question: an eddy crosses the orb's row in ~0.4–1.0 s at current
 scroll speeds, so the local tide is a jolt rather than a zone. If it reads as

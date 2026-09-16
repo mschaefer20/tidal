@@ -129,13 +129,14 @@
   //   eddies: local-tide discs scrolling with the field (EDDY_*)
   //   twin: the two planets breathe half a cycle apart (TWIN_*)
   //   keyed: charged gates — only the matching pull passes (KEY_*, keyEvery)
+  //   spring: arena whose horizon/rim ride the twin tides (SPRING_*)
   //   track: fx.js music id
   const ANOMALIES = [
     { n: 1, dim: "2d", flux: true, track: 11 },                    // Flux — pendulum, breathing gravity
     { n: 2, dim: "2d", flux: true, eddies: true, fluxLow: 0.10, fluxHigh: 0.22, track: 12 }, // Eddies — local surges, voids, drifts, bounties, inversions
     { n: 3, dim: "2d", flux: true, twin: true, track: 13 },        // Twin Tides — the planets breathe against each other
     { n: 4, dim: "2d", flux: true, twin: true, keyed: true, keyEvery: [1, 2], track: 14 }, // Magnetar — charged gates under twin tides
-    { n: 5, dim: "2d", arena: true, surges: true, scoreByDebris: true, flux: true, track: 15 }, // Maelstrom — the black hole breathes; surges land on high tide
+    { n: 5, dim: "2d", arena: true, surges: true, scoreByDebris: true, flux: true, twin: true, spring: true, eddies: true, track: 15 }, // Spring Tide — the shoreline moves: horizon and rim breathe against each other; tide pockets in the band
   ];
 
   // ---- Worlds ---------------------------------------------------------------
@@ -205,11 +206,21 @@
   const KEY_EVERY_MIN = 3, KEY_EVERY_MAX = 4;
   const KEY_FIRST = 2;               // free gates at orbital entry before the first charge
 
-  // ---- Anomalies V "Maelstrom": the black hole breathes ---------------------
-  // The O5 arena under the tide: the radial pull follows the breath, debris
-  // falls harder at high tide, and gravity surges WAIT for the swell so they
-  // land on high tide — a surge is read twice, by the glow and by the tide.
-  const MAEL_SURGE_T = 0.5;          // tide read-out (0…1) a surge waits for before charging
+  // ---- Anomalies V "Spring Tide": the shoreline moves ------------------------
+  // Twin Tides in polar form. The event horizon rides the LEFT tide — it
+  // swells to SPRING_HORIZON_MAX at high water — and the rim rides the RIGHT
+  // tide, tightening to SPRING_RIM_MIN, half a cycle apart. So the safe band
+  // slides in and out and you ride it like a shoreline; dashed marks show the
+  // extremes. Tide pockets (surge / void / invert eddies) surface in the band
+  // for a few seconds at a time. The radial pull and the debris follow the
+  // horizon's tide, and gravity surges WAIT for high water, so a surge is
+  // read twice — by the glow and by the tide you were already watching.
+  const SPRING_HORIZON_MAX = 88;     // event horizon radius at high water (base 30)
+  const SPRING_RIM_MIN = 164;        // rim radius at its low water (base 196)
+  const SPRING_EDDY_R = 44;          // tide-pocket radius
+  const SPRING_EDDY_LIFE = 6.5;      // s a pocket lasts (fades over its last second)
+  const SPRING_EDDY_EVERY_MIN = 4.0, SPRING_EDDY_EVERY_MAX = 6.5;
+  const MAEL_SURGE_T = 0.5;          // horizon-tide read-out (0…1) a surge waits for before charging
 
   // The active orbital's entry (or orbital n's, when given).
   function ORB(n) { return ORBITALS[(n || orbital) - 1] || ORBITALS[0]; }
@@ -259,6 +270,16 @@
   function effSide() { return gravSide * (eddyMult() < 0 ? -1 : 1); }
   // World-wide pendulum gravity multiplier: world physics × flux × local eddy.
   function gravMult() { return ((world.physics && world.physics.gravity) || 1) * fluxNow() * eddyMult(); }
+  // Arena variant: the radial pull follows the HORIZON's tide (the left one).
+  function arenaGrav() { return ((world.physics && world.physics.gravity) || 1) * fluxNow(-1) * eddyMult(); }
+  // Live arena radii — fixed everywhere except Spring Tide, where the horizon
+  // rides the left tide and the rim rides the right one.
+  function horizonR() {
+    return ORB().spring ? ARENA.rEvent + (SPRING_HORIZON_MAX - ARENA.rEvent) * (0.5 + 0.5 * fluxT(-1)) : ARENA.rEvent;
+  }
+  function rimR() {
+    return ORB().spring ? ARENA.rArena - (ARENA.rArena - SPRING_RIM_MIN) * (0.5 + 0.5 * fluxT(1)) : ARENA.rArena;
+  }
 
   // Speed ramps over the FIRST DIFF_RAMP points of each orbital, then holds —
   // so it resets to slow at the start of every orbital.
@@ -980,6 +1001,27 @@
     }
   }
 
+  // ---- Anomalies V: tide pockets in the arena --------------------------------
+  // One pocket at a time, parked in the always-safe part of the band for
+  // SPRING_EDDY_LIFE seconds. Surge / void / invert only — drift and bounty
+  // are field mechanics (sideways push, scrolling coins) and don't map here.
+  function spawnEddyArena() {
+    const type = ["surge", "void", "invert"][Math.floor(Math.random() * 3)];
+    const ang = Math.random() * TAU;
+    const r = randRange(SPRING_HORIZON_MAX + SPRING_EDDY_R * 0.4, SPRING_RIM_MIN - SPRING_EDDY_R * 0.4);
+    eddies.push({ x: ARENA.x + Math.cos(ang) * r, y: ARENA.y + Math.sin(ang) * r, r: SPRING_EDDY_R,
+      type, age: 0, spin: Math.random() < 0.5 ? -1 : 1, dir: 1, life: SPRING_EDDY_LIFE });
+  }
+  function updateEddiesArena(dt) {
+    for (const e of eddies) { e.age += dt; e.life -= dt; }
+    eddies = eddies.filter((e) => e.life > 0);
+    nextEddy -= dt;
+    if (nextEddy <= 0 && eddies.length < 1) {
+      spawnEddyArena();
+      nextEddy = randRange(SPRING_EDDY_EVERY_MIN, SPRING_EDDY_EVERY_MAX);
+    }
+  }
+
   // ---- Orbital 8 "Cosmic Strings" ------------------------------------------
   // Where the string's beam crosses the orb's row (off-field when near-horizontal).
   function stringXHit(s) {
@@ -1193,7 +1235,7 @@
     const ang = orb.theta - ARENA_OMEGA * 1.6 + (Math.random() - 0.5) * 0.7;
     debris.push({
       ang,
-      r: ARENA.rArena - 4,                 // appears at the rim
+      r: rimR() - 4,                       // appears at the rim
       vr: 0,                               // stationary while warning
       vAng: -(0.05 + Math.random() * 0.3), // counter-clockwise drift once falling
       size: 9 + Math.random() * 7,
@@ -1203,7 +1245,7 @@
   function spawnCoin(c) {
     const o = c || {};
     o.ang = Math.random() * TAU;
-    o.r = 70 + Math.random() * 105;
+    o.r = ORB().spring ? randRange(SPRING_HORIZON_MAX + 16, SPRING_RIM_MIN - 14) : 70 + Math.random() * 105;   // Spring Tide: always inside the band
     o.spd = (Math.random() < 0.5 ? -1 : 1) * 0.6;
     o.taken = false;
     o.respawn = 0;
@@ -1246,7 +1288,10 @@
       orb.y = ARENA.y + Math.sin(orb.theta) * orb.rho;
       orb.trail.push({ x: orb.x, y: orb.y });
       if (orb.trail.length > 22) orb.trail.shift();
-      if (orb.rho > 470) return die();   // off into space → game over
+      if (orb.rho > 470) {                 // off into space → game over
+        if (invuln > 0) { escaped = false; orb.rho = 125; orb.vrho = 0; return; }   // dev immortal: put it back
+        return die();
+      }
       return;
     }
 
@@ -1258,7 +1303,7 @@
     if (ORB().surges) {
       nextSurge -= dt;
       // Maelstrom: the surge waits for the swell so it lands on high tide
-      if (!surge && nextSurge <= 0 && (!ORB().flux || fluxT() > MAEL_SURGE_T)) surge = { phase: "charge", t: SURGE_CHARGE };
+      if (!surge && nextSurge <= 0 && (!ORB().flux || fluxT(-1) > MAEL_SURGE_T)) surge = { phase: "charge", t: SURGE_CHARGE };
       if (surge) {
         surge.t -= dt;
         if (surge.phase === "charge") {
@@ -1274,7 +1319,7 @@
     // sway between the hole (inner wall) and the rim (outer wall) — a pendulum
     // bent into a circle.
     orb.theta -= ARENA_OMEGA * dt;   // counter-clockwise sweep
-    orb.vrho += (gravSide > 0 ? -1 : 1) * ARENA_G * gMult * gravMult() * dt;   // attract = inward (× world physics × tide)
+    orb.vrho += (gravSide > 0 ? -1 : 1) * ARENA_G * gMult * arenaGrav() * dt;   // attract = inward (× world physics × tide × pocket)
     orb.vrho = Math.max(-ARENA_MAXVR, Math.min(ARENA_MAXVR, orb.vrho));
     orb.rho += orb.vrho * dt;
     orb.x = ARENA.x + Math.cos(orb.theta) * orb.rho;
@@ -1284,10 +1329,10 @@
     if (orb.trail.length > 22) orb.trail.shift();
     if (shake > 0) shake = Math.max(0, shake - dt * 60);
 
-    // pulled into the hole → consumed
-    if (orb.rho <= ARENA.rEvent + ORB_R * 0.3) return die();
+    // pulled into the hole → consumed (Spring Tide: the horizon is live)
+    if (orb.rho <= horizonR() + ORB_R * 0.3) return die();
     // flung past the rim → fly off into space (handled on the next frames)
-    if (orb.rho >= ARENA.rArena) { escaped = true; return; }
+    if (orb.rho >= rimR()) { escaped = true; return; }
 
     // supernova shockwaves + repositioning portals (orbital 10's attacks)
     if (ORB().novas) {
@@ -1310,10 +1355,10 @@
       const d = debris[i];
       if (d.warn > 0) { d.warn -= dt; continue; }   // telegraphing at the rim (no fall/collision)
       if (d.vr === 0) d.vr = -DEBRIS_SPEED0;          // release into the fall
-      d.vr -= DEBRIS_GRAV * gMult * fluxNow() * dt;     // accelerates toward the hole (harder mid-surge / at high tide)
+      d.vr -= DEBRIS_GRAV * gMult * fluxNow(-1) * dt;   // accelerates toward the hole (harder mid-surge / at high water)
       d.r += d.vr * dt;
       d.ang += d.vAng * dt;
-      if (d.r <= ARENA.rEvent) {            // consumed by the hole → score
+      if (d.r <= horizonR()) {              // consumed by the hole → score
         debris.splice(i, 1);
         addScore(1);                        // same value on every arena orbital
         if (orbital !== fromOrbital) return;
@@ -1323,6 +1368,9 @@
       const a = ex - orb.x, b = ey - orb.y;
       if (a * a + b * b < (ORB_R + d.size) * (ORB_R + d.size)) return die();
     }
+
+    // Spring Tide: tide pockets surface in the band
+    if (ORB().spring) updateEddiesArena(dt);
 
     // orbiting coins (respawn after being collected)
     for (const c of coins) {
@@ -1598,9 +1646,11 @@
   function drawEddy(e) {
     const inside = (orb.x - e.x) ** 2 + (orb.y - e.y) ** 2 < e.r * e.r;
     const gold = "#ffd27a", grey = "#9aa0d0";
+    const fade = e.life === undefined ? 1 : Math.min(1, e.life);   // arena pockets fade out
     ctx.save();
+    ctx.globalAlpha = fade;
     if (e.type === "invert") {
-      ctx.globalAlpha = 0.16;
+      ctx.globalAlpha = 0.16 * fade;
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r, Math.PI / 2, Math.PI * 1.5); ctx.closePath();
       ctx.fillStyle = colRight(); ctx.fill();                        // left half wears the RIGHT color
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r, -Math.PI / 2, Math.PI / 2); ctx.closePath();
@@ -1619,7 +1669,7 @@
     }
     // drift: chevrons streaming in the current's direction
     if (e.type === "drift") {
-      ctx.globalAlpha = inside ? 0.9 : 0.5;
+      ctx.globalAlpha = (inside ? 0.9 : 0.5) * fade;
       ctx.strokeStyle = "#bfe9ff"; ctx.lineWidth = 2;
       const off = (e.age * 60) % 24;
       for (let k = -1; k <= 1; k++) {
@@ -1633,14 +1683,14 @@
     const col = { surge: gold, void: grey, drift: "#bfe9ff", bounty: "#ffe28a", invert: "#ffffff" }[e.type];
     const rot = e.age * (e.type === "void" ? 0.6 : 1.8) * e.spin;
     ctx.translate(e.x, e.y); ctx.rotate(rot);
-    ctx.globalAlpha = inside ? 0.95 : 0.55;
+    ctx.globalAlpha = (inside ? 0.95 : 0.55) * fade;
     ctx.strokeStyle = col; ctx.lineWidth = inside ? 3 : 2;
     if (inside) { ctx.shadowBlur = 16; ctx.shadowColor = col; }
     ctx.setLineDash(e.type === "invert" ? [10, 8] : [5, 9]);
     ctx.beginPath(); ctx.arc(0, 0, e.r, 0, TAU); ctx.stroke();
     // inner swirl arcs (the current)
     ctx.setLineDash([]);
-    ctx.globalAlpha = inside ? 0.8 : 0.4;
+    ctx.globalAlpha = (inside ? 0.8 : 0.4) * fade;
     ctx.lineWidth = 1.5;
     for (let k = 0; k < 2; k++) {
       ctx.beginPath(); ctx.arc(0, 0, e.r * (0.35 + k * 0.25), k * 2.2, k * 2.2 + 2.6); ctx.stroke();
@@ -1756,10 +1806,21 @@
     ctx.fillStyle = bg;
     ctx.fillRect(-12, -12, W + 24, H + 24);
 
-    // arena boundary (deadly outer edge)
+    // arena boundary (deadly outer edge; live on Spring Tide)
     ctx.strokeStyle = "rgba(255,80,90,0.22)";
     ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(cx, cy, ARENA.rArena, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, rimR(), 0, TAU); ctx.stroke();
+    // Spring Tide: high-water mark of the horizon + low-water mark of the rim,
+    // so the band's extremes are always readable
+    if (ORB().spring) {
+      ctx.save();
+      ctx.setLineDash([4, 8]); ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(255,232,205,0.22)";
+      ctx.beginPath(); ctx.arc(cx, cy, SPRING_HORIZON_MAX, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = "rgba(255,80,90,0.22)";
+      ctx.beginPath(); ctx.arc(cx, cy, SPRING_RIM_MIN, 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
 
     // intro charge-up: a pulsing ring tightening onto the hole
     if (intro5) {
@@ -1770,7 +1831,7 @@
     }
 
     // accretion glow (brightens while a surge charges / fires)
-    const tide = ORB().flux ? fluxT() : 0;           // Maelstrom: the accretion glow breathes with the tide
+    const tide = ORB().flux ? fluxT(-1) : 0;         // Spring Tide: the accretion glow breathes with the horizon's tide
     const glowR = ARENA.rEvent * (active ? 3.6 : charging ? 2.6 + Math.sin(arenaTime * 22) * 0.5 : 2.2) * (1 + 0.3 * tide);
     const grd = ctx.createRadialGradient(cx, cy, ARENA.rEvent * 0.5, cx, cy, glowR);
     grd.addColorStop(0, active ? "rgba(255,120,40,0.95)" : "rgba(255,140,60,0.7)");
@@ -1791,11 +1852,12 @@
     }
     ctx.restore();
 
-    // photon ring + event horizon
+    // photon ring + event horizon (live radius on Spring Tide)
+    const hr = horizonR();
     ctx.strokeStyle = "rgba(255,232,205,0.9)"; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(cx, cy, ARENA.rEvent * 1.08, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, hr * 1.08, 0, TAU); ctx.stroke();
     ctx.fillStyle = "#000";
-    ctx.beginPath(); ctx.arc(cx, cy, ARENA.rEvent, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx, cy, hr, 0, TAU); ctx.fill();
 
     // supernova: swelling star + gap telegraph, then the expanding shockwave
     if (ORB().novas && nova) drawNova(cx, cy);
@@ -1822,13 +1884,17 @@
 
     // repositioning portals
     if (ORB().whArena) for (const w of wormholes) drawWormholeArena(w);
+    // tide pockets
+    if (ORB().spring) for (const e of eddies) drawEddy(e);
 
-    // pull / repel indicator (toward or away from the hole)
+    // pull / repel indicator (toward or away from the hole — the EFFECTIVE
+    // direction, so an inverting pocket shows the flip)
     const color = orbColor();
     const ux = orb.x - cx, uy = orb.y - cy;
     const ul = Math.hypot(ux, uy) || 1;
-    const reach = gravSide > 0 ? -22 : 22;   // inward when attracting
-    ctx.strokeStyle = gravSide > 0 ? "rgba(77,210,255,0.4)" : "rgba(255,94,126,0.4)";
+    const es = effSide();
+    const reach = es > 0 ? -22 : 22;   // inward when attracting
+    ctx.strokeStyle = es > 0 ? "rgba(77,210,255,0.4)" : "rgba(255,94,126,0.4)";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(orb.x, orb.y);
@@ -2235,6 +2301,7 @@
     reset();
     resume();
     if (DEV_START_ORBITAL >= 2) { devMode = true; enterOrbital(DEV_START_ORBITAL); }   // dev: ?orbital=N (unranked; never unlocks progression)
+    if (params.has("immortal")) { devMode = true; invuln = 1e9; }   // dev: never die (headless mechanic tests)
     sfx("start");
   }
 
@@ -2618,7 +2685,8 @@
       running, score, orbital, world: world.id, mode, gravSide, countdown,
       x: orb.x, vx: orb.vx, y: orb.y, flux: fluxNow(), grav: gravMult(),
       tideL: fluxNow(-1), tideR: fluxNow(1), tideT: fluxT(),
-      rho: orb.rho, vrho: orb.vrho, surge: surge ? surge.phase : null,
+      rho: orb.rho, vrho: orb.vrho, theta: orb.theta, surge: surge ? surge.phase : null, horizon: horizonR(), rim: rimR(),
+      debris: (debris || []).map((d) => ({ ang: d.ang, r: d.r, warn: d.warn, size: d.size })),
       eddies: eddies.map((e) => ({ x: e.x, y: e.y, r: e.r, type: e.type })),
       bars: bars.map((b) => ({ y: b.y, d: b.d, gx: b.gapX, gw: b.gapW, key: b.key || 0 })),
     });

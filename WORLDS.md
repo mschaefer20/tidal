@@ -269,7 +269,7 @@ A third of comets (`rogue` 0.33) are rogues — dark red-brown bodies, radius
 `ROGUE_R` 22, 0.7× speed, barely bending (`ROGUE_BEND` 0.3) — each wrapped
 in a visible well (`ROGUE_WELL` 115 px: a dim halo, rings falling inward, a
 dashed edge). Inside the well the orb is pulled toward the body at up to
-`ROGUE_PULL` 1100 px/s² at the surface, fading to zero at the edge, so the
+`ROGUE_PULL` 1400 px/s² at the surface, fading to zero at the edge, so the
 pendulum bends toward the comet as it passes and you tap against it. The
 well pulls the sky too (`ROGUE_PULL_SKY`): ice comets curve into it, loose
 coins fall in. Bait: `ROGUE_COINS` 3 coins orbit each rogue at `ROGUE_COIN_R`
@@ -283,13 +283,30 @@ The well that repels. A pusher (`pusher` 0.22; rogues stay at 0.22) is a pale
 ice-blue body with a white-hot core, radius `PUSH_R` 20, 0.75× speed, heavy
 (`PUSH_BEND` 0.3), wrapped in the same 115 px well as a rogue — but its rings
 **expand outward**, and inside it the orb and every comet are shoved away
-(`PUSH_FORCE` 1050 px/s² at the surface → 0 at the edge; `PUSH_FORCE_SKY` 600
+(`PUSH_FORCE` 1350 px/s² at the surface → 0 at the edge; `PUSH_FORCE_SKY` 750
 on the sky). Beside rogues this makes push-pull corridors: ice funnels between
 a pusher and a rogue, loose coins scatter from pushers and fall into rogues,
 and a pusher near a wall shoves you toward the planet. Pushers carry no bait.
 Wells are signed in code (`wellSign`, `wellAx`, `wellPushBody`, `drawWell`),
 so a third well kind is one more sign/colour. Track 19.
 Test: `?world=perihelion&orbital=4`.
+
+### Perihelion V — "Perihelion" (mock)
+
+The Origins V black-hole arena with the sky replaced. Debris become comets
+that fall from the rim, each telegraphed at the rim in its kind's color
+(ice white, rogue rust, pusher ice-blue). **The twist in polar form:** your
+radial pull steers the ice — attract inward and the comets rush the hole
+(`PERI_BEND_IN` 240 px/s² extra inward), repel outward and they slow to a crawl
+(`PERI_BEND_OUT` 150 px/s² outward; radial speed capped at `PERI_ICE_VMAX`).
+Measured with the pull held: median inward speed ~160 px/s attracting vs
+~40 px/s repelling. **Rogues and pushers** (`PERI_HEAVY_ODDS` 0.15 each)
+fall at their own pace (`PERI_HEAVY_SPEED` 0.7) and their wells (`PERI_WELL`
+100 px) drag / shove your **radius**, the one axis you control, at the same
+strengths as the field; they also pull / push the falling ice. Rogues carry
+three orbiting coins (`PERI_COIN_R` 40). No gravity surges — the comets and
+the wells are the attacks. Standard arena scoring: a comet the hole swallows
+is +1, coins +5. Track 20. Test: `?world=perihelion&orbital=5`.
 
 Shelved: "Sungrazers" (2026-09-16) — the active planet whipped comets back
 across the field hot. Built and verified; user: "not as cool as I thought."

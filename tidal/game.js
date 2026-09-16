@@ -150,11 +150,13 @@
   //   coinRain: [min,max] s between loose coins drifting down the open sky
   //   rogue: fraction of comets that are ROGUES — heavy, slow, with a gravity well (ROGUE_*)
   //   pusher: fraction of comets that are PUSHERS — wells that REPEL (PUSH_*)
+  //   cometArena: the black-hole arena with comets (ice/rogue/pusher) for debris (PERI_*)
   const PERIHELION = [
     { n: 1, dim: "2d", comets: true, track: 16 },                   // Shower — dense, telegraphed, bending comets
     { n: 2, dim: "2d", comets: true, sides: 0.5, coinRain: [3.5, 6.5], track: 17 }, // Crossfire — side entries cross above you and come down; loose coins drift by
     { n: 3, dim: "2d", comets: true, sides: 0.5, rogue: 0.33, coinRain: [4.0, 7.0], track: 18 }, // Rogues — heavy comets whose well pulls you, the sky, and the coins
     { n: 4, dim: "2d", comets: true, sides: 0.5, rogue: 0.22, pusher: 0.22, coinRain: [4.0, 7.0], track: 19 }, // Pushers — repelling wells beside the pulling ones: push-pull corridors
+    { n: 5, dim: "2d", arena: true, scoreByDebris: true, cometArena: true, track: 20 }, // Perihelion — comets rain into the black hole; your pull steers the ice; wells work your radius
   ];
 
   // ---- Worlds ---------------------------------------------------------------
@@ -218,8 +220,8 @@
   const ROGUE_SPEED = 0.7;                   // speed vs ice
   const ROGUE_BEND = 0.3;                    // bend vs ice
   const ROGUE_WELL = 115;                    // well radius (px) — the pull's reach
-  const ROGUE_PULL = 1100;                   // px/s² on the orb at the surface, fading to 0 at the edge (was 750; user wanted stronger)
-  const ROGUE_PULL_SKY = 600;                // px/s² on other comets and loose coins (was 420)
+  const ROGUE_PULL = 1400;                   // px/s² on the orb at the surface, fading to 0 at the edge (750 → 1100 → 1400 per playtest)
+  const ROGUE_PULL_SKY = 750;                // px/s² on other comets and loose coins
   const ROGUE_COINS = 3;                     // coins orbiting inside the well
   const ROGUE_COIN_R = 58, ROGUE_COIN_SPIN = 1.6;   // orbit radius (px) and rate (rad/s)
   const ROGUE_COL = "#c25a3f", ROGUE_TAIL = "#7a4a3f", ROGUE_CORE = "#2a1410", ROGUE_RING = "rgba(255,140,100,";
@@ -232,9 +234,23 @@
   const PUSH_R = 20;                         // body radius
   const PUSH_SPEED = 0.75;                   // speed vs ice
   const PUSH_BEND = 0.3;                     // bend vs ice (heavy, like a rogue)
-  const PUSH_FORCE = 1050;                   // px/s² on the orb at the surface, fading to 0 at the well's edge (was 700)
-  const PUSH_FORCE_SKY = 600;                // px/s² on other comets and loose coins (was 420)
+  const PUSH_FORCE = 1350;                   // px/s² on the orb at the surface, fading to 0 at the well's edge (700 → 1050 → 1350)
+  const PUSH_FORCE_SKY = 750;                // px/s² on other comets and loose coins
   const PUSH_COL = "#a8dcff", PUSH_TAIL = "#6f93b3", PUSH_CORE = "#ffffff", PUSH_RING = "rgba(168,220,255,";
+  // Perihelion (V): the Origins V arena with the sky replaced. Debris become
+  // comets falling from the rim, telegraphed in their kind's color. The twist
+  // in polar form: your RADIAL pull applies to the ice — attract inward and
+  // the comets rush the hole, repel and they hang in the band. Rogues and
+  // pushers fall at their own pace and their wells drag / shove your radius,
+  // the one axis you control. Rogues carry orbiting bait. Standard arena
+  // scoring (a comet the hole swallows = +1, coins +5).
+  const PERI_BEND_IN = 240;                  // px/s² extra INWARD on the ice while you attract inward (they rush the hole)
+  const PERI_BEND_OUT = 150;                 // px/s² OUTWARD on the ice while you repel (they stall, even back off)
+  const PERI_ICE_VMAX = 280;                 // px/s cap on ice radial speed either way
+  const PERI_HEAVY_SPEED = 0.7;              // rogue / pusher fall rate vs ice
+  const PERI_HEAVY_ODDS = 0.15;              // odds each of rogue / pusher per spawn
+  const PERI_WELL = 100;                     // arena well radius (tighter than the field's 115)
+  const PERI_COIN_R = 40;                    // bait orbit radius in the arena
   // Comets are aimed so their straight path crosses the orb's row on-field,
   // and a comet that the bend carries into a planet glances off it instead
   // of leaving — every comet reaches the bottom.
@@ -529,6 +545,7 @@
   let eddies, nextEddy;         // Anomalies II: local-tide discs + spawn timer
   let nextKeyGate, repelFx;     // Anomalies IV: gates until the next charged one; wrong-charge burst
   let comets, nextComet;        // Perihelion: falling comets + spawn timer
+  let debrisSeq = 0;            // debris ids (probe / tests)
   let nextRainCoin;             // Perihelion: loose-coin timer (coinRain orbitals)
   let stars;                    // Perihelion: parallax starfield
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
@@ -1494,14 +1511,53 @@
     // Spawn far enough ahead (in the sweep direction) that — after the warn +
     // fall time — it lands where the orb will be, so you actually have to dodge.
     const ang = orb.theta - ARENA_OMEGA * 1.6 + (Math.random() - 0.5) * 0.7;
-    debris.push({
+    const d = {
       ang,
       r: rimR() - 4,                       // appears at the rim
       vr: 0,                               // stationary while warning
       vAng: -(0.05 + Math.random() * 0.3), // counter-clockwise drift once falling
       size: 9 + Math.random() * 7,
       warn: 0.7,                           // telegraph time before it drops
-    });
+      id: ++debrisSeq,
+    };
+    if (ORB().cometArena) {                // Perihelion: a comet, not a rock
+      const roll = Math.random();
+      d.kind = roll < PERI_HEAVY_ODDS ? "rogue" : roll < PERI_HEAVY_ODDS * 2 ? "pusher" : "ice";
+      d.size = (d.kind === "rogue" ? ROGUE_R : d.kind === "pusher" ? PUSH_R : COMET_R) * 0.8;
+      d.tail = [];
+      d.warn = 0.8;
+    }
+    debris.push(d);
+  }
+  // Perihelion: radial force on the orb from every live well in the arena
+  // (the force's component along the orb's radius — the axis you control).
+  function arenaWellRadial() {
+    let f = 0;
+    const rx = Math.cos(orb.theta), ry = Math.sin(orb.theta);
+    for (const d of debris) {
+      const sg = wellSign(d);
+      if (!sg || d.warn > 0 || d.x === undefined) continue;
+      const dx = d.x - orb.x, dy = d.y - orb.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist >= PERI_WELL || dist < 1) continue;
+      f += sg * (sg > 0 ? ROGUE_PULL : PUSH_FORCE) * (1 - dist / PERI_WELL) * (dx / dist * rx + dy / dist * ry);
+    }
+    return f;
+  }
+  // Perihelion: wells act on the falling ice too (radial + angular components).
+  function arenaWellSky(d, dt) {
+    for (const w of debris) {
+      const sg = wellSign(w);
+      if (!sg || w.warn > 0 || w === d || w.x === undefined) continue;
+      const dx = w.x - d.x, dy = w.y - d.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist >= PERI_WELL || dist < 1) continue;
+      const a = sg * (sg > 0 ? ROGUE_PULL_SKY : PUSH_FORCE_SKY) * (1 - dist / PERI_WELL) * dt;
+      const fx = a * dx / dist, fy = a * dy / dist;
+      const rx = Math.cos(d.ang), ry = Math.sin(d.ang);
+      d.vr += fx * rx + fy * ry;
+      d.vAng += (-fx * ry + fy * rx) / Math.max(30, d.r);
+    }
   }
   function spawnCoin(c) {
     const o = c || {};
@@ -1524,7 +1580,7 @@
     orb.y = ARENA.y + Math.sin(orb.theta) * orb.rho;
     orb.trail = [];
     gravSide = -1;                // start drifting gently outward (rim is farther = safer)
-    debris = [];
+    debris = []; bonuses = [];
     coins = []; for (let i = 0; i < 3; i++) spawnCoin();
   }
 
@@ -1581,6 +1637,7 @@
     // bent into a circle.
     orb.theta -= ARENA_OMEGA * dt;   // counter-clockwise sweep
     orb.vrho += (gravSide > 0 ? -1 : 1) * ARENA_G * gMult * arenaGrav() * dt;   // attract = inward (× world physics × tide × pocket)
+    if (ORB().cometArena) orb.vrho += arenaWellRadial() * dt;                      // Perihelion: wells drag / shove your radius
     orb.vrho = Math.max(-ARENA_MAXVR, Math.min(ARENA_MAXVR, orb.vrho));
     orb.rho += orb.vrho * dt;
     orb.x = ARENA.x + Math.cos(orb.theta) * orb.rho;
@@ -1591,7 +1648,10 @@
     if (shake > 0) shake = Math.max(0, shake - dt * 60);
 
     // pulled into the hole → consumed (Spring Tide: the horizon is live)
-    if (orb.rho <= horizonR() + ORB_R * 0.3) return die();
+    if (orb.rho <= horizonR() + ORB_R * 0.3) {
+      if (invuln > 0) { orb.rho = (horizonR() + rimR()) / 2; orb.vrho = 0; }   // dev immortal: put it back in the band
+      else return die();
+    }
     // flung past the rim → fly off into space (handled on the next frames)
     if (orb.rho >= rimR()) { escaped = true; return; }
 
@@ -1612,22 +1672,55 @@
       nextDebris = Math.max(0.38, 1.5 - arenaTime * 0.05)
         * (ORB().novas ? 1.4 : ORB().scoreByDebris ? 1 / 1.1 : 1);
     }
+    const peri = !!ORB().cometArena;
     for (let i = debris.length - 1; i >= 0; i--) {
       const d = debris[i];
-      if (d.warn > 0) { d.warn -= dt; continue; }   // telegraphing at the rim (no fall/collision)
-      if (d.vr === 0) d.vr = -DEBRIS_SPEED0;          // release into the fall
-      d.vr -= DEBRIS_GRAV * gMult * fluxNow(-1) * dt;   // accelerates toward the hole (harder mid-surge / at high water)
+      d.x = ARENA.x + Math.cos(d.ang) * d.r; d.y = ARENA.y + Math.sin(d.ang) * d.r;
+      if (d.warn > 0) {                               // telegraphing at the rim (no fall/collision)
+        d.warn -= dt;
+        if (d.warn <= 0 && d.kind === "rogue") spawnRogueCoins(d);
+        continue;
+      }
+      const heavy = peri && d.kind !== "ice";
+      if (d.vr === 0) d.vr = -DEBRIS_SPEED0 * (heavy ? PERI_HEAVY_SPEED : 1);   // release into the fall
+      d.vr -= DEBRIS_GRAV * gMult * fluxNow(-1) * (heavy ? PERI_HEAVY_SPEED : 1) * dt;   // accelerates toward the hole (harder mid-surge / at high water)
+      if (peri && !heavy) {
+        // Perihelion: your radial pull steers the ice — attract and it rushes
+        // the hole, repel and it stalls or backs off. Heavy bodies ignore you.
+        d.vr += (gravSide > 0 ? -PERI_BEND_IN : PERI_BEND_OUT) * dt;
+        arenaWellSky(d, dt);
+        d.vr = Math.max(-PERI_ICE_VMAX, Math.min(PERI_ICE_VMAX, d.vr));
+      }
       d.r += d.vr * dt;
       d.ang += d.vAng * dt;
+      if (peri) { d.tail.push({ x: d.x, y: d.y }); if (d.tail.length > 12) d.tail.shift(); }
       if (d.r <= horizonR()) {              // consumed by the hole → score
         debris.splice(i, 1);
         addScore(1);                        // same value on every arena orbital
         if (orbital !== fromOrbital) return;
         continue;
       }
-      const ex = ARENA.x + Math.cos(d.ang) * d.r, ey = ARENA.y + Math.sin(d.ang) * d.r;
+      if (peri && d.r > rimR() + 40) { debris.splice(i, 1); continue; }   // shoved out past the rim — gone
+      const ex = d.x, ey = d.y;
       const a = ex - orb.x, b = ey - orb.y;
       if (a * a + b * b < (ORB_R + d.size) * (ORB_R + d.size)) return die();
+    }
+    // Perihelion: bait orbiting the rogues
+    if (peri) {
+      for (const o of bonuses) {
+        if (o.taken || !o.host) continue;
+        o.ang += ROGUE_COIN_SPIN * dt;
+        o.x = o.host.x + Math.cos(o.ang) * PERI_COIN_R;
+        o.y = o.host.y + Math.sin(o.ang) * PERI_COIN_R;
+        const cx = o.x - orb.x, cy = o.y - orb.y;
+        if (cx * cx + cy * cy < (ORB_R + 9) ** 2) {
+          o.taken = true;
+          addScore(5); sfx("coin"); buzz("light");
+          if (window.TidalStore) TidalStore.addCoins(TidalStore.coinMultiplier());
+          if (orbital !== fromOrbital) return;
+        }
+      }
+      bonuses = bonuses.filter((o) => !o.taken && debris.includes(o.host));
     }
 
     // Spring Tide: tide pockets surface in the band
@@ -2079,23 +2172,23 @@
   // A well: a dim halo plus rings that move toward the body (rogue: pull) or
   // away from it (pusher: push), so reach AND direction read at a glance.
   // Brightens when the orb is inside.
-  function drawWell(c) {
+  function drawWell(c, R = ROGUE_WELL) {
     const push = c.kind === "pusher";
     const d = Math.hypot(c.x - orb.x, c.y - orb.y);
-    const inside = d < ROGUE_WELL;
+    const inside = d < R;
     const t = performance.now() / 1000;
     const ring = push ? PUSH_RING : ROGUE_RING;
     ctx.save();
-    const g = ctx.createRadialGradient(c.x, c.y, c.r, c.x, c.y, ROGUE_WELL);
+    const g = ctx.createRadialGradient(c.x, c.y, c.r, c.x, c.y, R);
     g.addColorStop(0, push ? "rgba(90,140,190,0.26)" : "rgba(120,40,30,0.28)");
     g.addColorStop(1, push ? "rgba(90,140,190,0)" : "rgba(120,40,30,0)");
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(c.x, c.y, ROGUE_WELL, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(c.x, c.y, R, 0, TAU); ctx.fill();
     ctx.lineWidth = 1.2;
     for (let k = 0; k < 3; k++) {
       const ph = (t * 0.45 + k / 3) % 1;
       const f = push ? ph : 1 - ph;                       // pusher: rings expand; rogue: rings fall in
-      const rr = c.r + (ROGUE_WELL - c.r) * f;
+      const rr = c.r + (R - c.r) * f;
       ctx.globalAlpha = (inside ? 0.55 : 0.32) * (1 - f) * (0.4 + 0.6 * f);
       ctx.strokeStyle = ring + "1)";
       ctx.beginPath(); ctx.arc(c.x, c.y, rr, 0, TAU); ctx.stroke();
@@ -2103,8 +2196,42 @@
     ctx.globalAlpha = inside ? 0.5 : 0.22;
     ctx.setLineDash([3, 7]);
     ctx.strokeStyle = ring + "1)";
-    ctx.beginPath(); ctx.arc(c.x, c.y, ROGUE_WELL, 0, TAU); ctx.stroke();   // the well's edge
+    ctx.beginPath(); ctx.arc(c.x, c.y, R, 0, TAU); ctx.stroke();   // the well's edge
     ctx.restore();
+  }
+
+  // Perihelion: one arena comet — kind-colored telegraph ring at the rim,
+  // then a tailed head (with its well if it's a rogue / pusher).
+  function drawArenaComet(d, ex, ey) {
+    const rogue = d.kind === "rogue", pusher = d.kind === "pusher";
+    const head = rogue ? ROGUE_COL : pusher ? PUSH_COL : "#eef8ff";
+    if (d.warn > 0) {
+      const p = 0.5 + 0.5 * Math.sin(d.warn * 22);
+      ctx.save();
+      ctx.globalAlpha = 0.4 + p * 0.5;
+      ctx.strokeStyle = head; ctx.lineWidth = rogue || pusher ? 3 : 2.5;
+      ctx.beginPath(); ctx.arc(ex, ey, d.size + 5 + p * 5, 0, TAU); ctx.stroke();
+      ctx.restore();
+      return;
+    }
+    if (rogue || pusher) drawWell({ x: ex, y: ey, r: d.size, kind: d.kind }, PERI_WELL);
+    for (let i = 1; i < d.tail.length; i++) {
+      const a = i / d.tail.length;
+      ctx.save();
+      ctx.globalAlpha = a * (rogue || pusher ? 0.3 : 0.5);
+      ctx.strokeStyle = rogue ? ROGUE_TAIL : pusher ? PUSH_TAIL : head;
+      ctx.lineWidth = 1 + a * d.size * 0.9; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(d.tail[i - 1].x, d.tail[i - 1].y); ctx.lineTo(d.tail[i].x, d.tail[i].y); ctx.stroke();
+      ctx.restore();
+    }
+    glowCircle(ex, ey, d.size, head, true);
+    if (rogue) { ctx.fillStyle = ROGUE_CORE; ctx.beginPath(); ctx.arc(ex, ey, d.size * 0.62, 0, TAU); ctx.fill(); }
+    else if (pusher) {
+      ctx.save();
+      ctx.fillStyle = PUSH_CORE; ctx.shadowBlur = 14; ctx.shadowColor = PUSH_CORE;
+      ctx.beginPath(); ctx.arc(ex, ey, d.size * 0.45, 0, TAU); ctx.fill();
+      ctx.restore();
+    }
   }
 
   // ---- Orbital 3 rendering -------------------------------------------------
@@ -2238,9 +2365,10 @@
     // supernova: swelling star + gap telegraph, then the expanding shockwave
     if (ORB().novas && nova) drawNova(cx, cy);
 
-    // debris — warning pulse at the rim, then the falling rock
+    // debris — warning pulse at the rim, then the falling rock (Perihelion: a comet)
     for (const d of debris) {
       const ex = cx + Math.cos(d.ang) * d.r, ey = cy + Math.sin(d.ang) * d.r;
+      if (ORB().cometArena) { drawArenaComet(d, ex, ey); continue; }
       if (d.warn > 0) {
         const p = 0.5 + 0.5 * Math.sin(d.warn * 22);
         ctx.strokeStyle = `rgba(255,90,60,${0.4 + p * 0.5})`;
@@ -2260,6 +2388,8 @@
 
     // repositioning portals
     if (ORB().whArena) for (const w of wormholes) drawWormholeArena(w);
+    // Perihelion: bait orbiting the rogues
+    if (ORB().cometArena) for (const o of bonuses) if (!o.taken && o.host) glowCircle(o.x, o.y, 7, "#ffd84d");
     // tide pockets
     if (ORB().spring) for (const e of eddies) drawEddy(e);
 
@@ -3062,7 +3192,8 @@
       x: orb.x, vx: orb.vx, y: orb.y, flux: fluxNow(), grav: gravMult(),
       tideL: fluxNow(-1), tideR: fluxNow(1), tideT: fluxT(),
       rho: orb.rho, vrho: orb.vrho, theta: orb.theta, surge: surge ? surge.phase : null, horizon: horizonR(), rim: rimR(),
-      debris: (debris || []).map((d) => ({ ang: d.ang, r: d.r, warn: d.warn, size: d.size })),
+      debris: (debris || []).map((d) => ({ id: d.id, ang: d.ang, r: d.r, vr: d.vr, warn: d.warn, size: d.size, kind: d.kind })),
+      wellRadial: ORB().cometArena ? arenaWellRadial() : 0,
       eddies: eddies.map((e) => ({ x: e.x, y: e.y, r: e.r, type: e.type })),
       comets: (comets || []).map((c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, r: c.r, warn: c.warn, entry: c.entry, kind: c.kind })),
       rain: bonuses.filter((o) => o.rain && !o.taken).length,

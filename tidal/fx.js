@@ -115,6 +115,7 @@
     17: { arp: [174.61, 261.63, 311.13, 349.23, 415.30, 349.23, 311.13, 261.63], roots: [87.31, 87.31, 103.83, 77.78], step: 185, type: "triangle", lp: 1700, gain: 0.09, bass: 0.22 }, // Perihelion II "Crossfire" — brisk Fm, lines crossing
     18: { arp: [146.83, 174.61, 220.00, 293.66, 349.23, 293.66, 220.00, 174.61], roots: [73.42, 73.42, 87.31, 65.41], step: 200, type: "sawtooth", lp: 1300, gain: 0.09, bass: 0.26 }, // Perihelion III "Rogues" — Dm, heavy sawtooth under a light arp
     19: { arp: [155.56, 233.08, 277.18, 311.13, 415.30, 311.13, 277.18, 233.08], roots: [77.78, 77.78, 92.50, 69.30], step: 165, type: "sawtooth", lp: 1700, gain: 0.09, bass: 0.24 }, // Perihelion IV "Pushers" — D#m, bright and restless
+    20: { arp: [116.54, 174.61, 207.65, 233.08, 277.18, 233.08, 207.65, 174.61], roots: [58.27, 58.27, 69.30, 51.91], step: 175, type: "sawtooth", lp: 1350, gain: 0.11, bass: 0.30 }, // Perihelion V "Perihelion" — A#m, deep and relentless
   };
   function trk() { return TRACKS[currentTrack] || TRACKS[1]; }
 

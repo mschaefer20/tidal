@@ -88,6 +88,18 @@ Keyboard (browser only): Space/Enter flip, Esc/P pause.
   `android.includePlugins`).
 - ➡️ **Rewarded ads (AdMob)** — still deferred. `watchAd()` stub; button
   hidden. Needs AdMob account + `@capacitor-community/admob` + privacy labels.
+- 🧭 **NEXT GAMEPLAY DIRECTION — WORLDS (branch `worlds`, 2026-09-15).**
+  Both stores are live and the user is happy with them; the open work is
+  gameplay. Only a handful of players ever reach orbital X, so instead of
+  extending the ladder the game grows sideways: **Worlds** — named ladders
+  of orbitals, each with its own step, physics, palette, best score,
+  leaderboard and Start From progress. **Origins** = the shipped ten,
+  untouched (keeps `tidal_high_scores` + the old storage keys).
+  **Anomalies** = world two, signature twist **Flux** (gravity breathes on a
+  6 s cycle); orbital I is built as a PREVIEW. Title screen has a world
+  picker. Design doc + open decisions: **`WORLDS.md`**. Test:
+  `?world=anomalies`; `?probe` exposes state for headless smoke tests.
+  (XI/XII on `orbitals-11-20` are candidates for Anomalies III–IV.)
 
 ## Known issues / TODO
 - ✅ Music-on-speaker FIXED (arp up an octave, mid harmonic carries the bass) —

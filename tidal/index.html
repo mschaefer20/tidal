@@ -40,7 +40,17 @@
       <!-- Title / main menu -->
       <section id="screen-title" class="screen">
         <h2 class="logo" id="title-logo">TIDAL</h2>
-        <p class="tagline">One button. Two gravities.</p>
+        <!-- World picker: each world is its own ladder of orbitals with its
+             own best score + leaderboard (see WORLDS.md) -->
+        <div class="world-pick">
+          <button class="world-arrow" data-action="world-prev" aria-label="Previous world">&#8249;</button>
+          <div class="world-label">
+            <span class="world-name"><span id="world-name">ORIGINS</span><em id="world-tag" hidden>PREVIEW</em></span>
+            <span class="world-sub" id="world-sub"></span>
+          </div>
+          <button class="world-arrow" data-action="world-next" aria-label="Next world">&#8250;</button>
+        </div>
+        <p class="tagline" id="title-tagline">One button. Two gravities.</p>
         <button class="btn" data-action="play">Play</button>
         <button class="btn ghost" id="btn-startfrom" data-action="startfrom" hidden>Start From</button>
         <button class="btn ghost" data-action="shop">Shop</button>

@@ -106,7 +106,7 @@
   //   wh: wormholes  whChaos: drifting/hopping   whY: rings at varying heights
   //   whArena: polar arena portals               strings: rotating laser lines
   //   novas: expanding shockwave rings
-  const ORBITALS = [
+  const ORIGINS = [
     { n: 1,  dim: "2d" },                                          // 2D pendulum
     { n: 2,  dim: "3d" },                                          // 3D tunnel
     { n: 3,  dim: "2d", binary: true },                            // 2D binary
@@ -118,11 +118,57 @@
     { n: 9,  dim: "3d", wh: true, whY: true, drift: true, wells: true, str3: true, whEvery: [1.8, 3.0] }, // cosmic strings in the tunnel (3D orbital 8)
     { n: 10, dim: "2d", arena: true, novas: true, whArena: true, whEvery: [4.0, 6.0] }, // supernova finale
   ];
+
+  // ---- Anomalies (world two — PREVIEW) --------------------------------------
+  // Signature twist: FLUX — the pull strength breathes on a slow cycle (the
+  // tide rises and falls). Every Anomalies orbital carries it on top of its
+  // own mechanic; orbital I is the plain pendulum under the breathing pull so
+  // the twist is learned clean before anything is stacked on it.
+  //   flux: gravity oscillation (FLUX_* tunables)   track: fx.js music id
+  const ANOMALIES = [
+    { n: 1, dim: "2d", flux: true, track: 11 },                    // Flux — pendulum, breathing gravity
+  ];
+
+  // ---- Worlds ---------------------------------------------------------------
+  // A World is a named ladder of orbitals with its own threshold spacing,
+  // leaderboard, best score and Start From progress. Origins is the original
+  // ten and keeps the pre-worlds storage keys, so nothing migrates. A run is
+  // always scored inside exactly one world; the world is picked on the title
+  // screen and persisted. See WORLDS.md.
+  //   step: points per orbital          physics: world-wide multipliers
+  //   palette: planet/orb colors        mock: preview world (PREVIEW tag)
+  const WORLDS = [
+    { id: "origins", name: "ORIGINS", tagline: "One button. Two gravities.",
+      step: 100, orbitals: ORIGINS,
+      leaderboard: "tidal_high_scores", bestKey: "tidal-best", unlockKey: "tidal-unlocked" },
+    { id: "anomalies", name: "ANOMALIES", tagline: "Gravity itself is unstable here.", mock: true,
+      step: 60, orbitals: ANOMALIES,
+      physics: { gravity: 0.85, gap: 1.12 },        // floatier pull, roomier gaps
+      palette: { left: "#c77dff", right: "#5cf2c0" },
+      leaderboard: "tidal_anomalies", bestKey: "tidal-best-anomalies", unlockKey: "tidal-unlocked-anomalies" },
+  ];
+
+  // ---- Anomalies "Flux": gravity breathes ----------------------------------
+  // gravity × (1 + FLUX_AMP·sin(2π·t / FLUX_PERIOD)). Telegraphed by the wall
+  // glow swelling at high tide and fading at low tide, plus a halo around the
+  // orb, so the change is readable before it's felt. Amplitude eases in over
+  // FLUX_RAMP so an orbital never opens mid-surge.
+  const FLUX_PERIOD = 6.0;           // s per full breath
+  const FLUX_AMP = 0.35;             // ±35% gravity at the extremes
+  const FLUX_RAMP = 4.0;             // s for the amplitude to reach full
+
   // The active orbital's entry (or orbital n's, when given).
   function ORB(n) { return ORBITALS[(n || orbital) - 1] || ORBITALS[0]; }
   // Score to reach orbital n. Dev mode spaces them 7 apart (7/14/21/28);
-  // regular mode 100 apart (100/200/300/400).
-  function orbitalThreshold(n) { return n <= 1 ? 0 : (devMode ? 7 : 100) * (n - 1); }
+  // regular mode world.step apart (Origins: 100/200/300/400).
+  function orbitalThreshold(n) { return n <= 1 ? 0 : (devMode ? 7 : world.step) * (n - 1); }
+  // Current flux multiplier (1 when the orbital has no flux).
+  function fluxNow() {
+    if (!ORB().flux) return 1;
+    return 1 + FLUX_AMP * Math.min(1, fluxTime / FLUX_RAMP) * Math.sin(TAU * fluxTime / FLUX_PERIOD);
+  }
+  // World-wide pendulum gravity multiplier: world physics × flux.
+  function gravMult() { return ((world.physics && world.physics.gravity) || 1) * fluxNow(); }
 
   // Speed ramps over the FIRST DIFF_RAMP points of each orbital, then holds —
   // so it resets to slow at the start of every orbital.
@@ -140,7 +186,10 @@
 
   // The orb's two gravity-state colors (left pull / right pull).
   const ORB_LEFT = "#ff5e7e", ORB_RIGHT = "#4dd2ff";
-  function orbColor() { return gravSide > 0 ? ORB_RIGHT : ORB_LEFT; }
+  // Worlds may recolor the pair (Anomalies: violet / mint).
+  function colLeft() { return (world.palette && world.palette.left) || ORB_LEFT; }
+  function colRight() { return (world.palette && world.palette.right) || ORB_RIGHT; }
+  function orbColor() { return gravSide > 0 ? colRight() : colLeft(); }
 
   // Global pace. NORMAL is the shipped play speed (75% of the old baseline).
   // DEV_SLOW is a toggleable slow-motion for development/testing.
@@ -280,17 +329,24 @@
   let g3Time, gpL, gpR;   // Orbital 3: oscillation clock + live planet positions
   let arenaTime, debris, coins, surge, nextSurge, nextDebris, escaped;   // Orbital 5 arena
   let nova, nextNova;           // Orbital 10: active shockwave + schedule
+  let fluxTime;                 // Anomalies: flux clock (gravity breath)
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
-
-  const BEST_KEY = "tidal-best";
-  let best = Number(localStorage.getItem(BEST_KEY) || 0);
-  bestEl.textContent = best;
 
   // Dev: open with ?3d (or ?mode=3d) to start straight in the 3D mode,
   // and ?slow to boot in dev slow-motion.
   const params = new URLSearchParams(location.search);
+
+  // ---- World selection -----------------------------------------------------
+  // Persisted (a menu choice, not part of a run); ?world=<id> overrides for
+  // dev/testing. Best score + Start From progress live per world.
+  const WORLD_KEY = "tidal-world";
+  let world = WORLDS.find((w) => w.id === (params.get("world") || localStorage.getItem(WORLD_KEY))) || WORLDS[0];
+  let ORBITALS = world.orbitals;
+  let best = Number(localStorage.getItem(world.bestKey) || 0);
+  bestEl.textContent = best;
   const DEV_START_3D = params.has("3d") || params.get("mode") === "3d";
-  // Dev shortcut: ?orbital=N boots every run straight into that Orbital.
+  // Dev shortcut: ?orbital=N boots every run straight into that Orbital
+  // (of the selected world — combine with ?world=<id>).
   const DEV_START_ORBITAL = Math.max(0, Math.min(ORBITALS.length, Number(params.get("orbital")) || 0));
   // Screenshot helper: ?shot=N drops into a posed scene (score/best/orbital, no death).
   const SHOT = Math.max(0, Math.min(5, Number(params.get("shot")) || 0));
@@ -306,10 +362,41 @@
   // via URL params (?dev / ?orbital / ?3d) for testing — not in the shipped UI.
   let devMode = params.has("dev") || DEV_START_3D || DEV_START_ORBITAL > 0;
   // Highest orbital the player has reached — unlocks "Start From" (persisted).
-  const UNLOCK_KEY = "tidal-unlocked";
-  let unlocked = Math.max(1, Math.min(ORBITALS.length, Number(localStorage.getItem(UNLOCK_KEY) || 1)));
+  function loadUnlocked() { return Math.max(1, Math.min(ORBITALS.length, Number(localStorage.getItem(world.unlockKey) || 1))); }
+  let unlocked = loadUnlocked();
   function setUnlocked(n) {
-    if (n > unlocked) { unlocked = n; localStorage.setItem(UNLOCK_KEY, String(unlocked)); }
+    if (n > unlocked) { unlocked = n; localStorage.setItem(world.unlockKey, String(unlocked)); }
+  }
+
+  // Switch the active world (title screen only): swap the ladder, reload its
+  // best + progress, retheme, and redraw the idle board.
+  function setWorld(w) {
+    world = w;
+    ORBITALS = w.orbitals;
+    localStorage.setItem(WORLD_KEY, w.id);
+    best = Number(localStorage.getItem(w.bestKey) || 0);
+    bestEl.textContent = best;
+    unlocked = loadUnlocked();
+    document.body.dataset.world = w.id;
+    reset();
+    draw();
+    refreshWorldUI();
+    refreshCoinsUI();
+  }
+  function cycleWorld(dir) {
+    const i = WORLDS.indexOf(world);
+    setWorld(WORLDS[(i + dir + WORLDS.length) % WORLDS.length]);
+    sfx("flip"); buzz("light");
+  }
+  function refreshWorldUI() {
+    setText("world-name", world.name);
+    setText("title-tagline", world.tagline);
+    const tag = document.getElementById("world-tag");
+    if (tag) tag.hidden = !world.mock;
+    const n = ORBITALS.length;
+    setText("world-sub", best > 0
+      ? `Best ${best} · ${ORBITAL_LABEL[unlocked] || "ORBITAL " + unlocked} reached`
+      : `${n} orbital${n === 1 ? "" : "s"}`);
   }
 
   // Persists across runs (it's a setting, not part of a game).
@@ -350,8 +437,9 @@
     gpR = { x: G3_RIGHT.x, y: G3_RIGHT.y };
     arenaTime = 0; surge = null; nextSurge = SURGE_EVERY;
     nextDebris = DEBRIS_FIRST; debris = []; coins = []; escaped = false;
+    fluxTime = 0;
     if (mode === "3d") build3DField(); else { hide3D(); build2DField(); }
-    if (window.TidalFX) TidalFX.setOrbital(orbital);
+    if (window.TidalFX) TidalFX.setOrbital(ORB(orbital).track || orbital);
     scoreEl.textContent = score;
   }
 
@@ -390,6 +478,7 @@
     wormholes = [];
     nextWormhole = nextWormholeDelay();
     strings = []; nextStr3 = randRange(STR3_EVERY_MIN, STR3_EVERY_MAX);
+    fluxTime = 0;                // flux opens at neutral tide, amplitude eases in
     if (mode === "3d") {
       depthSpeed = DEPTH_SPEED_START;
       intro = 0;
@@ -401,7 +490,7 @@
       hide3D();
       if (ORB(n).arena) buildArena(); else build2DField();
     }
-    if (window.TidalFX) TidalFX.setOrbital(n);
+    if (window.TidalFX) TidalFX.setOrbital(ORB(n).track || n);
     playShiftBanner(n);
     sfx("shift");
     buzz("medium");
@@ -413,7 +502,7 @@
     const big = el.querySelector(".big");
     const small = el.querySelector(".small");
     if (big) big.textContent = ORBITAL_LABEL[n] || "ORBITAL";
-    if (small) small.textContent = "";
+    if (small) small.textContent = world.name;
     el.classList.remove("run");
     void el.offsetWidth;        // restart the CSS animation
     el.classList.add("run");
@@ -458,7 +547,7 @@
     const halfPlay = (W - 2 * WALL) / 2;
     const nx = (x) => (x - W / 2) / halfPlay;
     return {
-      orbLeft: ORB_LEFT, orbRight: ORB_RIGHT,
+      orbLeft: colLeft(), orbRight: colRight(),
       orbNX: Math.max(-1.2, Math.min(1.2, nx(orb.x))),
       orbNY: ORB().drift ? (orb.y - H / 2) / (H / 2) : 0,
       wellL: ORB().wells ? { x: nx(gpL.x), y: (gpL.y - H / 2) / (H / 2) } : null,
@@ -491,7 +580,7 @@
 
   function gapWidth() {
     const t = Math.min(1, score / 40);
-    return GAP_START - (GAP_START - GAP_MIN) * t;
+    return (GAP_START - (GAP_START - GAP_MIN) * t) * ((world.physics && world.physics.gap) || 1);
   }
 
   function randomGapX(gap) {
@@ -637,7 +726,7 @@
   // Shared horizontal pendulum physics. Returns false if the orb crashed
   // into a planet surface (so the caller can stop).
   function stepOrb(dt) {
-    orb.vx += gravSide * GRAVITY * dt;
+    orb.vx += gravSide * GRAVITY * gravMult() * dt;
     orb.vx = Math.max(-MAX_VX, Math.min(MAX_VX, orb.vx));
     orb.x += orb.vx * dt;
     orb.trail.push({ x: orb.x, y: orb.y });
@@ -697,6 +786,7 @@
   function update2D(dt) {
     const fromOrbital = orbital;
     scroll = scrollSpeed();   // score-based, capped at DIFF_MAX_SCORE
+    if (ORB().flux) fluxTime += dt;
 
     if (!stepOrb(dt)) return die();
 
@@ -1297,6 +1387,7 @@
 
   function draw2D() {
     drawPlanets();
+    if (ORB().flux) drawFlux();
 
     if (orbitalHasWormholes()) for (const w of wormholes) drawWormhole(w);
 
@@ -1323,6 +1414,39 @@
 
     // orb (color shows which way it's being pulled)
     glowCircle(orb.x, orb.y, ORB_R, orbColor(), true);
+    if (ORB().flux) drawFluxHalo();
+  }
+
+  // ---- Anomalies "Flux" rendering ------------------------------------------
+  // Tide read-out, two cues: the wall glow on both sides widens/brightens at
+  // high tide and all but vanishes at low tide (gravity is global, so both
+  // walls breathe together), and a halo around the orb swells with the pull.
+  function drawFlux() {
+    const t = (fluxNow() - 1) / FLUX_AMP;            // -1 low tide … +1 high tide
+    const wgl = 34 + 46 * Math.max(0, t);
+    const a = 0.06 + 0.16 * (t + 1) / 2;
+    for (const side of [-1, 1]) {
+      const x0 = side < 0 ? WALL : W - WALL;
+      const col = side < 0 ? colLeft() : colRight();
+      const g = ctx.createLinearGradient(x0, 0, x0 - side * wgl, 0);
+      g.addColorStop(0, col);
+      g.addColorStop(1, "rgba(5,6,15,0)");
+      ctx.save();
+      ctx.globalAlpha = a * ((side < 0 ? gravSide < 0 : gravSide > 0) ? 1.6 : 1);
+      ctx.fillStyle = g;
+      if (side < 0) ctx.fillRect(x0, 0, wgl, H); else ctx.fillRect(x0 - wgl, 0, wgl, H);
+      ctx.restore();
+    }
+  }
+  function drawFluxHalo() {
+    const t = (fluxNow() - 1) / FLUX_AMP;
+    ctx.save();
+    ctx.globalAlpha = 0.18 + 0.22 * (t + 1) / 2;
+    ctx.strokeStyle = orbColor();
+    ctx.lineWidth = 1.5 + Math.max(0, t) * 1.5;
+    ctx.shadowBlur = 10; ctx.shadowColor = orbColor();
+    ctx.beginPath(); ctx.arc(orb.x, orb.y, ORB_R * (1.9 + 0.9 * t), 0, TAU); ctx.stroke();
+    ctx.restore();
   }
 
   // ---- Orbital 3 rendering -------------------------------------------------
@@ -1333,8 +1457,8 @@
     ctx.fillRect(0, H - Y_WALL, W, Y_WALL);
 
     // the two offset gravity planets (active one brighter), live oscillating y
-    planet(gpL.x, gpL.y, 150, "#ff5e7e", gravSide < 0);
-    planet(gpR.x, gpR.y, 150, "#4dd2ff", gravSide > 0);
+    planet(gpL.x, gpL.y, 150, colLeft(), gravSide < 0);
+    planet(gpR.x, gpR.y, 150, colRight(), gravSide > 0);
 
     // pull line toward the active planet (makes the force readable)
     const tp = gravSide > 0 ? gpR : gpL;
@@ -1582,8 +1706,8 @@
 
   function draw3D() {
     // tunnel side walls converging to the vanishing point (gravity planets)
-    tunnelWall(0, "#ff5e7e", gravSide < 0);          // left = pink
-    tunnelWall(W, "#4dd2ff", gravSide > 0);          // right = cyan
+    tunnelWall(0, colLeft(), gravSide < 0);          // left = pink
+    tunnelWall(W, colRight(), gravSide > 0);         // right = cyan
 
     // depth grid lines for a sense of speed
     ctx.strokeStyle = "rgba(120,130,210,0.12)";
@@ -1689,8 +1813,8 @@
   function drawPlanets() {
     // Left planet (pink) and right planet (cyan) anchored off the edges.
     const pr = 150;
-    planet(-pr + WALL - 2, H / 2, pr, "#ff5e7e", gravSide < 0);
-    planet(W + pr - WALL + 2, H / 2, pr, "#4dd2ff", gravSide > 0);
+    planet(-pr + WALL - 2, H / 2, pr, colLeft(), gravSide < 0);
+    planet(W + pr - WALL + 2, H / 2, pr, colRight(), gravSide > 0);
   }
 
   function planet(cx, cy, r, color, active) {
@@ -1909,14 +2033,17 @@
     const newBest = !devMode && score > best;
     if (newBest) {
       best = score;
-      localStorage.setItem(BEST_KEY, String(best));
+      localStorage.setItem(world.bestKey, String(best));
       bestEl.textContent = best;
     }
     setText("continue-score", newBest ? `Score ${score} — New Best!` : `Score ${score} · Best ${best}`);
     // Players who haven't reached orbital 2 yet get a nudge that the game
     // transforms at 100 — the reveal is the hook, so hint, don't spoil.
     const tease = document.getElementById("continue-tease");
-    if (tease) tease.hidden = unlocked >= 2 || devMode;
+    if (tease) {
+      tease.hidden = unlocked >= 2 || devMode || ORBITALS.length < 2;
+      tease.textContent = `Something is waiting at ${world.step}\u2026`;
+    }
     showContinueConfirm(false);
     refreshContinue();
     screens.continue.classList.remove("hidden");
@@ -1961,7 +2088,7 @@
 
   // The run has truly ended (submit to the leaderboard when it's live).
   function finalizeRun() {
-    if (!devMode && window.TidalGC) TidalGC.submit(score);
+    if (!devMode && window.TidalGC) TidalGC.submit(score, world.leaderboard);
   }
 
   // ---- Menu / screen management -------------------------------------------
@@ -2047,7 +2174,9 @@
       else if (a === "howto") showScreen("howto");
       else if (a === "settings") { refreshToggles(); showScreen("settings"); }
       else if (a === "back") { showScreen("title"); refreshCoinsUI(); }
-      else if (a === "leaderboard") { if (window.TidalGC) TidalGC.show(); }
+      else if (a === "leaderboard") { if (window.TidalGC) TidalGC.show(world.leaderboard); }
+      else if (a === "world-prev") cycleWorld(-1);
+      else if (a === "world-next") cycleWorld(1);
     });
   });
 
@@ -2084,7 +2213,7 @@
         finalizeRun();
         goMenu();
       } else if (a === "leaderboard") {
-        if (window.TidalGC) TidalGC.show();
+        if (window.TidalGC) TidalGC.show(world.leaderboard);
       }
     });
   });
@@ -2173,7 +2302,7 @@
 
   // Leaderboard button on the game-over / pause overlay
   const lbOver = document.getElementById("lb-over");
-  if (lbOver) lbOver.addEventListener("click", (e) => { e.stopPropagation(); if (window.TidalGC) TidalGC.show(); });
+  if (lbOver) lbOver.addEventListener("click", (e) => { e.stopPropagation(); if (window.TidalGC) TidalGC.show(world.leaderboard); });
 
   // Reveal leaderboard buttons only where Game Center exists (the native app)
   if (window.TidalGC && TidalGC.available()) {
@@ -2213,15 +2342,25 @@
   // First paint — start on the title screen
   applySettings();
   refreshToggles();
+  document.body.dataset.world = world.id;
   reset();
   draw();
   showScreen("title");
+  refreshWorldUI();
   refreshCoinsUI();
   // ?shot=N → posed screenshot scene. Wait for `load` so the WebGL engine
   // module (deferred) is ready, otherwise 3D orbitals fall back to canvas.
   if (SHOT && SHOTS[SHOT]) window.addEventListener("load", () => setupShot(SHOTS[SHOT]));
   // ?screen=shop → open that screen directly (for screenshots / testing).
   if (params.get("screen") === "shop") window.addEventListener("load", () => { refreshShop(); showScreen("shop"); });
+  // ?probe → read-only state snapshot for headless smoke tests (dev only).
+  if (params.has("probe")) {
+    window.TidalProbe = () => ({
+      running, score, orbital, world: world.id, mode, gravSide, countdown,
+      x: orb.x, vx: orb.vx, y: orb.y, flux: fluxNow(),
+      bars: bars.map((b) => ({ y: b.y, d: b.d, gx: b.gapX, gw: b.gapW })),
+    });
+  }
 
   // ---- PWA registration ----------------------------------------------------
   if ("serviceWorker" in navigator) {

@@ -8,6 +8,8 @@
 (() => {
   "use strict";
 
+  // Default (Origins) board. Other worlds pass their own id to submit/show;
+  // every id used must exist in App Store Connect (see WORLDS.md).
   const LEADERBOARD_ID = "tidal_high_scores";
 
   // Enabled for v1.1. Requires: Game Center on the App ID, the game-center
@@ -42,23 +44,23 @@
     return signedIn;
   }
 
-  async function submit(score) {
+  async function submit(score, id) {
     if (!ENABLED) return;
     const p = plugin();
     if (!p || score <= 0) return;
     try {
       if (!signedIn) await signIn();
-      if (signedIn) await p.submitScore({ leaderboardID: LEADERBOARD_ID, totalScoreAmount: score });
+      if (signedIn) await p.submitScore({ leaderboardID: id || LEADERBOARD_ID, totalScoreAmount: score });
     } catch (e) { /* ignore — local best still saved */ }
   }
 
-  async function show() {
+  async function show(id) {
     if (!ENABLED) return;
     const p = plugin();
     if (!p) return;
     try {
       if (!signedIn) await signIn();
-      await p.showLeaderboard({ leaderboardID: LEADERBOARD_ID });
+      await p.showLeaderboard({ leaderboardID: id || LEADERBOARD_ID });
     } catch (e) { /* ignore */ }
   }
 

@@ -148,11 +148,11 @@
   //   comets: comet field replaces the barrier field (COMET_* tunables)
   //   sides: fraction of comets that enter from a side edge (COMET_SIDE_*)
   //   coinRain: [min,max] s between loose coins drifting down the open sky
-  //   iron: fraction of comets that are IRON — bigger, slower, barely bend (COMET_IRON_*)
+  //   rogue: fraction of comets that are ROGUES — heavy, slow, with a gravity well (ROGUE_*)
   const PERIHELION = [
     { n: 1, dim: "2d", comets: true, track: 16 },                   // Shower — dense, telegraphed, bending comets
     { n: 2, dim: "2d", comets: true, sides: 0.5, coinRain: [3.5, 6.5], track: 17 }, // Crossfire — side entries cross above you and come down; loose coins drift by
-    { n: 3, dim: "2d", comets: true, sides: 0.5, iron: 0.4, coinRain: [4.0, 7.0], track: 18 }, // Ice and Iron — iron comets barely bend: read which ones will follow you
+    { n: 3, dim: "2d", comets: true, sides: 0.5, rogue: 0.33, coinRain: [4.0, 7.0], track: 18 }, // Rogues — heavy comets whose well pulls you, the sky, and the coins
   ];
 
   // ---- Worlds ---------------------------------------------------------------
@@ -205,16 +205,22 @@
   const COMET_SIDE_Y = [0.05, 0.33];         // entry height, fraction of H
   const COMET_SIDE_ANGLE = [0.50, 0.75];     // rad below horizontal (29°–43°) — shallowest steepened per playtest
   const COIN_RAIN_SPEED = 150;               // px/s a loose coin drifts down (slower than any comet)
-  // Ice and Iron (III): two comet kinds. ICE is the comet you know — it bends
-  // fully with your pull. IRON is heavier: bigger, slower, and it barely
-  // bends, so it will NOT follow you — you dodge it by moving, not by
-  // steering the sky. Rust-colored head, streak and tail, so the kind is
-  // known from the telegraph on.
-  const COMET_IRON_R = 19;                   // iron head radius (ice = COMET_R)
-  const COMET_IRON_SPEED = 0.8;              // iron speed vs ice
-  const COMET_IRON_BEND = 0.15;              // iron bend vs ice
-  const COMET_IRON_COIN = 0.25;              // iron tail-coin odds (ice = COMET_COIN_ODDS)
-  const COMET_IRON_COL = "#e0a583", COMET_IRON_TAIL = "#a58c7f", COMET_IRON_CORE = "#5e4034";
+  // Rogues (III): heavy comets with a gravity WELL. Inside the well a rogue
+  // pulls the orb toward it (strongest at the surface, zero at the well's
+  // edge) — so your pendulum bends toward the comet as it passes and you tap
+  // against it. It pulls everything else too: ice comets curve into it, loose
+  // coins fall in, and ROGUE_COINS coins orbit inside the well as the bait.
+  // Rogues barely bend to your pull (they're massive) — the twist mirrored:
+  // your planets pull the comets, the rogue pulls you. Only the head kills.
+  const ROGUE_R = 22;                        // body radius (ice = COMET_R)
+  const ROGUE_SPEED = 0.7;                   // speed vs ice
+  const ROGUE_BEND = 0.3;                    // bend vs ice
+  const ROGUE_WELL = 115;                    // well radius (px) — the pull's reach
+  const ROGUE_PULL = 750;                    // px/s² on the orb at the surface, fading to 0 at the edge
+  const ROGUE_PULL_SKY = 420;                // px/s² on other comets and loose coins
+  const ROGUE_COINS = 3;                     // coins orbiting inside the well
+  const ROGUE_COIN_R = 58, ROGUE_COIN_SPIN = 1.6;   // orbit radius (px) and rate (rad/s)
+  const ROGUE_COL = "#c25a3f", ROGUE_TAIL = "#7a4a3f", ROGUE_CORE = "#2a1410", ROGUE_RING = "rgba(255,140,100,";
   // Comets are aimed so their straight path crosses the orb's row on-field,
   // and a comet that the bend carries into a planet glances off it instead
   // of leaving — every comet reaches the bottom.
@@ -640,12 +646,12 @@
   function cometSpeed() { return COMET_SPEED_START + (COMET_SPEED_MAX - COMET_SPEED_START) * difficulty(); }
   function cometMax() { return COMET_MAX_START + Math.round(2 * difficulty()); }
   function spawnComet() {
-    const iron = !!ORB().iron && Math.random() < ORB().iron;
-    const kind = iron ? "iron" : "ice";
-    const r = iron ? COMET_IRON_R : COMET_R;
-    const sp = cometSpeed() * (iron ? COMET_IRON_SPEED : 1);
-    const coin = Math.random() < (iron ? COMET_IRON_COIN : COMET_COIN_ODDS) ? { taken: false } : null;
-    const base = { r, kind, bend: iron ? COMET_IRON_BEND : 1, warn: COMET_WARN, tail: [], passed: false, coin };
+    const rogue = !!ORB().rogue && Math.random() < ORB().rogue;
+    const kind = rogue ? "rogue" : "ice";
+    const r = rogue ? ROGUE_R : COMET_R;
+    const sp = cometSpeed() * (rogue ? ROGUE_SPEED : 1);
+    const coin = !rogue && Math.random() < COMET_COIN_ODDS ? { taken: false } : null;   // a rogue's coins orbit it instead
+    const base = { r, kind, bend: rogue ? ROGUE_BEND : 1, warn: COMET_WARN, tail: [], passed: false, coin };
     if (ORB().sides && Math.random() < ORB().sides) {
       // Crossfire: in from a side edge, high up, angled down across the field
       const side = Math.random() < 0.5 ? -1 : 1;          // -1 = enters from the left
@@ -669,6 +675,36 @@
       entry: "top",
     }));
   }
+  // A rogue's orbiting coins are bonuses hosted by the comet; they ride with
+  // it and vanish with it. Created when the rogue is released from its warn.
+  function spawnRogueCoins(c) {
+    for (let i = 0; i < ROGUE_COINS; i++) {
+      bonuses.push({ x: c.x, y: c.y, taken: false, host: c, ang: (i / ROGUE_COINS) * TAU });
+    }
+  }
+  // Horizontal pull on the orb from every live rogue whose well reaches it.
+  function rogueAx() {
+    let ax = 0;
+    for (const c of comets) {
+      if (c.kind !== "rogue" || c.warn > 0) continue;
+      const dx = c.x - orb.x, dy = c.y - orb.y;
+      const d = Math.hypot(dx, dy);
+      if (d >= ROGUE_WELL || d < 1) continue;
+      ax += ROGUE_PULL * (1 - d / ROGUE_WELL) * (dx / d);
+    }
+    return ax;
+  }
+  // Pull a free-moving body (another comet, a loose coin) toward the rogues.
+  function roguePullBody(b, dt) {
+    for (const c of comets) {
+      if (c.kind !== "rogue" || c.warn > 0 || c === b) continue;
+      const dx = c.x - b.x, dy = c.y - b.y;
+      const d = Math.hypot(dx, dy);
+      if (d >= ROGUE_WELL || d < 1) continue;
+      const a = ROGUE_PULL_SKY * (1 - d / ROGUE_WELL) * dt;
+      b.vx += a * dx / d; b.vy += a * dy / d;
+    }
+  }
   // Where the tail coin rides: a fixed distance behind the head along its motion.
   function cometCoinPos(c) {
     const l = Math.hypot(c.vx, c.vy) || 1;
@@ -676,6 +712,7 @@
   }
   function updateComets(dt) {
     const fromOrbital = orbital;
+    if (ORB().rogue) orb.vx += rogueAx() * dt;          // a passing rogue drags the pendulum toward it
     if (!stepOrb(dt)) return die();
 
     // keep the sky busy: at least one comet, cadence + cap ramp with difficulty
@@ -687,8 +724,13 @@
 
     for (let i = comets.length - 1; i >= 0; i--) {
       const c = comets[i];
-      if (c.warn > 0) { c.warn -= dt; continue; }        // telegraphing at the top edge
-      c.vx += gravSide * COMET_BEND * (c.bend || 1) * dt; // the twist: comets bend with your pull (iron barely)
+      if (c.warn > 0) {                                    // telegraphing at the edge
+        c.warn -= dt;
+        if (c.warn <= 0 && c.kind === "rogue") spawnRogueCoins(c);
+        continue;
+      }
+      c.vx += gravSide * COMET_BEND * (c.bend || 1) * dt; // the twist: comets bend with your pull (rogues barely)
+      if (ORB().rogue && c.kind !== "rogue") roguePullBody(c, dt);   // ice curves into a rogue's well
       c.x += c.vx * dt; c.y += c.vy * dt;
       // glance off a planet surface rather than leave the field
       if (c.x < WALL + c.r && c.vx < 0) { c.x = WALL + c.r; c.vx = -c.vx * COMET_BOUNCE; }
@@ -728,7 +770,16 @@
     }
     for (const o of bonuses) {
       if (o.taken) continue;
-      o.y += COIN_RAIN_SPEED * dt;
+      if (o.host) {
+        // orbiting a rogue
+        o.ang += ROGUE_COIN_SPIN * dt;
+        o.x = o.host.x + Math.cos(o.ang) * ROGUE_COIN_R;
+        o.y = o.host.y + Math.sin(o.ang) * ROGUE_COIN_R;
+      } else {
+        if (o.vx === undefined) { o.vx = 0; o.vy = COIN_RAIN_SPEED; }
+        if (ORB().rogue) roguePullBody(o, dt);           // loose coins fall into a well
+        o.x += o.vx * dt; o.y += o.vy * dt;
+      }
       const cx = o.x - orb.x, cy = o.y - orb.y;
       if (cx * cx + cy * cy < (ORB_R + 9) ** 2) {
         o.taken = true;
@@ -737,7 +788,7 @@
         if (orbital !== fromOrbital) return;
       }
     }
-    bonuses = bonuses.filter((o) => !o.taken && o.y < H + 20);
+    bonuses = bonuses.filter((o) => !o.taken && (o.host ? comets.includes(o.host) : (o.y < H + 20 && o.x > -20 && o.x < W + 20)));
 
     // starfield drifts down; near layers faster (parallax)
     for (const st of stars) {
@@ -1944,9 +1995,9 @@
     drawStars();
     drawPlanets();
     for (const c of comets) {
-      const iron = c.kind === "iron";
-      const head = iron ? COMET_IRON_COL : "#eef8ff";
-      const tailCol = iron ? COMET_IRON_TAIL : "#eef8ff";
+      const rogue = c.kind === "rogue";
+      const head = rogue ? ROGUE_COL : "#eef8ff";
+      const tailCol = rogue ? ROGUE_TAIL : "#eef8ff";
       if (c.warn > 0) {
         // telegraph: the entry streak brightens as release nears; the head
         // peeks over the top edge and grows
@@ -1957,7 +2008,7 @@
         const ey = c.entry === "top" ? 0 : c.y;
         ctx.save();
         ctx.globalAlpha = 0.12 + 0.3 * t;
-        ctx.strokeStyle = head; ctx.lineWidth = 1.5;
+        ctx.strokeStyle = head; ctx.lineWidth = rogue ? 2.5 : 1.5;
         ctx.setLineDash([6, 10]);
         ctx.beginPath();
         ctx.moveTo(ex, ey);
@@ -1974,16 +2025,17 @@
       for (let i = 1; i < c.tail.length; i++) {
         const a = i / c.tail.length;
         ctx.save();
-        ctx.globalAlpha = a * (iron ? 0.4 : 0.55);
-        ctx.strokeStyle = tailCol; ctx.lineWidth = 1 + a * c.r * (iron ? 0.8 : 1.1); ctx.lineCap = "round";
+        ctx.globalAlpha = a * (rogue ? 0.35 : 0.55);
+        ctx.strokeStyle = tailCol; ctx.lineWidth = 1 + a * c.r * (rogue ? 0.6 : 1.1); ctx.lineCap = "round";
         ctx.beginPath(); ctx.moveTo(c.tail[i - 1].x, c.tail[i - 1].y); ctx.lineTo(c.tail[i].x, c.tail[i].y); ctx.stroke();
         ctx.restore();
       }
+      if (rogue) drawRogueWell(c);
       if (c.coin && !c.coin.taken) { const p = cometCoinPos(c); glowCircle(p.x, p.y, 7, "#ffd84d"); }
       glowCircle(c.x, c.y, c.r, head, true);
-      if (iron) {   // a dark heavy core so iron reads as mass, not light
-        ctx.fillStyle = COMET_IRON_CORE;
-        ctx.beginPath(); ctx.arc(c.x + c.r * 0.1, c.y + c.r * 0.1, c.r * 0.55, 0, TAU); ctx.fill();
+      if (rogue) {   // a near-black core: mass, not light
+        ctx.fillStyle = ROGUE_CORE;
+        ctx.beginPath(); ctx.arc(c.x, c.y, c.r * 0.62, 0, TAU); ctx.fill();
       }
     }
     // loose coins
@@ -1996,6 +2048,34 @@
     }
     ctx.globalAlpha = 1;
     glowCircle(orb.x, orb.y, ORB_R, orbColor(), true);
+  }
+
+  // A rogue's well: a dim halo plus rings that contract toward the body, so
+  // the pull's reach and direction read at a glance. Brightens when the orb
+  // is inside.
+  function drawRogueWell(c) {
+    const d = Math.hypot(c.x - orb.x, c.y - orb.y);
+    const inside = d < ROGUE_WELL;
+    const t = performance.now() / 1000;
+    ctx.save();
+    const g = ctx.createRadialGradient(c.x, c.y, c.r, c.x, c.y, ROGUE_WELL);
+    g.addColorStop(0, "rgba(120,40,30,0.28)");
+    g.addColorStop(1, "rgba(120,40,30,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(c.x, c.y, ROGUE_WELL, 0, TAU); ctx.fill();
+    ctx.lineWidth = 1.2;
+    for (let k = 0; k < 3; k++) {
+      const f = 1 - ((t * 0.45 + k / 3) % 1);            // 1 → 0: rings fall inward
+      const rr = c.r + (ROGUE_WELL - c.r) * f;
+      ctx.globalAlpha = (inside ? 0.55 : 0.32) * (1 - f) * (0.4 + 0.6 * f);
+      ctx.strokeStyle = ROGUE_RING + "1)";
+      ctx.beginPath(); ctx.arc(c.x, c.y, rr, 0, TAU); ctx.stroke();
+    }
+    ctx.globalAlpha = inside ? 0.5 : 0.22;
+    ctx.setLineDash([3, 7]);
+    ctx.strokeStyle = ROGUE_RING + "1)";
+    ctx.beginPath(); ctx.arc(c.x, c.y, ROGUE_WELL, 0, TAU); ctx.stroke();   // the well's edge
+    ctx.restore();
   }
 
   // ---- Orbital 3 rendering -------------------------------------------------
@@ -2957,6 +3037,7 @@
       eddies: eddies.map((e) => ({ x: e.x, y: e.y, r: e.r, type: e.type })),
       comets: (comets || []).map((c) => ({ x: c.x, y: c.y, vx: c.vx, vy: c.vy, r: c.r, warn: c.warn, entry: c.entry, kind: c.kind })),
       rain: bonuses.filter((o) => o.rain && !o.taken).length,
+      rogueAx: ORB().rogue ? rogueAx() : 0, orbitCoins: bonuses.filter((o) => o.host && !o.taken).length,
       bars: bars.map((b) => ({ y: b.y, d: b.d, gx: b.gapX, gw: b.gapW, key: b.key || 0 })),
     });
   }

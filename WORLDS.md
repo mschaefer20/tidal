@@ -262,16 +262,26 @@ already in place. A few loose coins drift down the open sky on their own
 (`coinRain` [3.5, 6.5] s apart, `COIN_RAIN_SPEED` 150 px/s) — a low-frequency
 reward that isn't attached to a hazard. Track 17. Test: `?world=perihelion&orbital=2`.
 
-### Perihelion III — "Ice and Iron" (mock)
+### Perihelion III — "Rogues" (mock)
 
-The twist becomes a read. Two comet kinds share the sky (`iron` 0.4 on the
-orbital): **ice** is the comet you know — it bends fully with your pull;
-**iron** is heavier — bigger (`COMET_IRON_R` 19), slower (`COMET_IRON_SPEED`
-0.8), and it barely bends (`COMET_IRON_BEND` 0.15), so it will not follow
-you. You steer ice and you *move* for iron. Iron is rust-colored from the
-telegraph streak on, with a dark heavy core, and carries tail coins less
-often (`COMET_IRON_COIN` 0.25). Keeps II's side entries and loose coins.
-Track 18. Test: `?world=perihelion&orbital=3`.
+The twist mirrored: your planets pull the comets; a **rogue** pulls *you*.
+A third of comets (`rogue` 0.33) are rogues — dark red-brown bodies, radius
+`ROGUE_R` 22, 0.7× speed, barely bending (`ROGUE_BEND` 0.3) — each wrapped
+in a visible well (`ROGUE_WELL` 115 px: a dim halo, rings falling inward, a
+dashed edge). Inside the well the orb is pulled toward the body at up to
+`ROGUE_PULL` 750 px/s² at the surface, fading to zero at the edge, so the
+pendulum bends toward the comet as it passes and you tap against it. The
+well pulls the sky too (`ROGUE_PULL_SKY`): ice comets curve into it, loose
+coins fall in. Bait: `ROGUE_COINS` 3 coins orbit each rogue at `ROGUE_COIN_R`
+58 px — dive in and fight the pull, or stay clear. Only the head kills; the
+well is harmless. Keeps II's side entries and loose coins. Track 18.
+Test: `?world=perihelion&orbital=3`.
+
+Shelved: "Ice and Iron" (same day) — a second comet kind that merely bent
+less. User: "I don't really love the iron concept … maybe they are like
+little gravity well comets." It was a passive read in a world whose identity
+is active physics; Rogues keep the "won't follow you" quality but make the
+heavy comet *do* something.
 
 Proposed rest of the ladder: IV Fragments or Sungrazers, V arena finale.
 

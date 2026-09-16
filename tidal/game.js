@@ -330,7 +330,7 @@
   function ORB(n) { return ORBITALS[(n || orbital) - 1] || ORBITALS[0]; }
   // Score to reach orbital n. Dev mode spaces them 7 apart (7/14/21/28);
   // regular mode world.step apart (Origins: 100/200/300/400).
-  function orbitalThreshold(n) { return n <= 1 ? 0 : (devMode ? 7 : world.step) * (n - 1); }
+  function orbitalThreshold(n) { return n <= 1 ? 0 : (DEV_FAST ? 7 : world.step) * (n - 1); }
   // Current flux multiplier (1 when the orbital has no flux).
   // `side` (-1 left / +1 right) matters only on twin orbitals; it defaults to
   // the side the orb is actually being pulled toward.
@@ -582,6 +582,10 @@
   // Dev mode = compressed thresholds + excluded from ranking. Only reachable
   // via URL params (?dev / ?orbital / ?3d) for testing — not in the shipped UI.
   let devMode = params.has("dev") || DEV_START_3D || DEV_START_ORBITAL > 0;
+  // Compressed 7-point thresholds only for URL-driven dev sessions. The
+  // tester logo unlock is unranked too, but keeps the real thresholds so an
+  // orbital plays exactly as it ships.
+  const DEV_FAST = devMode;
   // Highest orbital the player has reached — unlocks "Start From" (persisted).
   // Tester dev unlock: 5 taps on the title logo within 2 s toggles it. While
   // on, Start From lists EVERY orbital of the current world; a run begun

@@ -224,10 +224,14 @@ density is a *shower* (several on screen), never fewer than one.
 
 ### Perihelion I — "Shower" (mock)
 
-Open sky, no barriers. Comets wait at the top edge for `COMET_WARN` 0.6 s
-with their entry path drawn as a dashed streak and the head peeking over the
-edge, then fall at `COMET_SPEED_START` 230 → `COMET_SPEED_MAX` 400 px/s,
-tilted up to `COMET_ANGLE` 0.45 rad. **Only the head kills.** The tail is a
+Open sky, no barriers; a three-layer parallax starfield falls past so the
+sky reads as motion. Comets wait at the top edge for `COMET_WARN` 0.6 s with
+their entry path drawn as a dashed streak and the head peeking over the edge,
+then fall at `COMET_SPEED_START` 230 → `COMET_SPEED_MAX` 400 px/s. Each is
+aimed at a point on the orb's row well inside the walls (tilt clamped to
+`COMET_ANGLE` 0.45 rad), and one the bend carries into a planet glances off
+it (`COMET_BOUNCE` 0.7) — every comet reaches the bottom. Head radius
+`COMET_R` 12. **Only the head kills.** The tail is a
 thinning polyline that curves with the bend; 45 % of comets carry a coin
 `COMET_COIN_BACK` 56 px behind the head. Score +1 per head that passes the
 orb's row, +5 per tail coin. Cadence 1.25 → 0.6 s and cap 3 → 5 on screen
@@ -237,9 +241,11 @@ ramp with `difficulty()`; if the sky is ever empty a comet spawns at once.
 so a flip steers the sky. Palette ember `#ff8c42` / ice `#7fd7ff`. Music:
 track 16. Test: `?world=perihelion` (`?probe` exposes `comets`).
 
-Playtest questions: is 260 px/s² of bend readable, or does it need the
-telegraph streak to show the *bent* path? Is a 0.6 s warning enough at 400
-px/s? Do walls (planet surfaces) still feel fair with no gaps to aim for?
+Playtest so far (2026-09-16): warning time good; walls stay deadly (user);
+heads were too small (9 → 12); comets that left the field sideways were
+fixed with aiming + wall glance; starfield added for the sense of motion.
+Open: is 260 px/s² of bend readable, or does the telegraph need to show the
+*bent* path?
 
 ### Original brainstorm (kept for the ladder)
 

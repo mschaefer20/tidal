@@ -179,7 +179,7 @@
   // passes below the orb's row, +5 for a coin plucked from a tail. Comets
   // bend toward the active planet at COMET_BEND — flipping to swing one way
   // pulls the incoming comets the same way. Density ramps with difficulty().
-  const COMET_R = 9;                 // head radius (kill radius vs the orb)
+  const COMET_R = 12;                // head radius (kill radius vs the orb)
   const COMET_SPEED_START = 230;     // px/s at the start of the ramp
   const COMET_SPEED_MAX = 400;
   const COMET_ANGLE = 0.45;          // rad from vertical: max entry tilt
@@ -191,6 +191,14 @@
   const COMET_COIN_ODDS = 0.45;      // chance a comet carries a coin in its tail
   const COMET_COIN_BACK = 56;        // px behind the head the coin rides
   const COMET_TAIL = 18;             // tail samples kept
+  const COMET_BOUNCE = 0.7;          // vx kept when a comet glances off a planet surface
+  // Comets are aimed so their straight path crosses the orb's row on-field,
+  // and a comet that the bend carries into a planet glances off it instead
+  // of leaving — every comet reaches the bottom.
+  // Starfield: three parallax layers falling past, so the open sky reads as
+  // motion through space even with no barriers scrolling.
+  const STAR_COUNT = 70;
+  const STAR_SPEEDS = [22, 48, 95];  // px/s per layer (far → near)
 
   // ---- Anomalies "Flux": gravity breathes ----------------------------------
   // gravity × (1 + FLUX_AMP·sin(2π·t / FLUX_PERIOD)). Telegraphed by the wall
@@ -478,6 +486,7 @@
   let eddies, nextEddy;         // Anomalies II: local-tide discs + spawn timer
   let nextKeyGate, repelFx;     // Anomalies IV: gates until the next charged one; wrong-charge burst
   let comets, nextComet;        // Perihelion: falling comets + spawn timer
+  let stars;                    // Perihelion: parallax starfield
   let use3DEngine = false;   // becomes true once the WebGL engine inits OK
 
   // Dev: open with ?3d (or ?mode=3d) to start straight in the 3D mode,
@@ -595,14 +604,25 @@
   }
 
   // ---- Perihelion: the comet field -------------------------------------------
-  function buildComets() { bars = []; bonuses = []; comets = []; nextComet = 0.9; }
+  function buildComets() {
+    bars = []; bonuses = []; comets = []; nextComet = 0.9;
+    stars = [];
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const layer = i % 3;
+      stars.push({ x: Math.random() * W, y: Math.random() * H, layer, r: 0.6 + layer * 0.5 + Math.random() * 0.5, tw: Math.random() * TAU });
+    }
+  }
   function cometSpeed() { return COMET_SPEED_START + (COMET_SPEED_MAX - COMET_SPEED_START) * difficulty(); }
   function cometMax() { return COMET_MAX_START + Math.round(2 * difficulty()); }
   function spawnComet() {
-    const a = (Math.random() * 2 - 1) * COMET_ANGLE;
     const sp = cometSpeed();
+    const x = randRange(WALL + 24, W - WALL - 24);
+    // aim at a point on the orb's row that is comfortably on-field, then clamp
+    // the tilt — the straight path always crosses the row inside the walls
+    const tx = randRange(WALL + 40, W - WALL - 40);
+    const a = Math.max(-COMET_ANGLE, Math.min(COMET_ANGLE, Math.atan2(tx - x, ORB_Y + COMET_R + 4)));
     comets.push({
-      x: randRange(WALL + 24, W - WALL - 24), y: -COMET_R - 4,
+      x, y: -COMET_R - 4,
       vx: Math.sin(a) * sp, vy: Math.cos(a) * sp, r: COMET_R,
       warn: COMET_WARN, tail: [], passed: false,
       coin: Math.random() < COMET_COIN_ODDS ? { taken: false } : null,
@@ -629,6 +649,9 @@
       if (c.warn > 0) { c.warn -= dt; continue; }        // telegraphing at the top edge
       c.vx += gravSide * COMET_BEND * dt;                 // the twist: comets bend with your pull
       c.x += c.vx * dt; c.y += c.vy * dt;
+      // glance off a planet surface rather than leave the field
+      if (c.x < WALL + c.r && c.vx < 0) { c.x = WALL + c.r; c.vx = -c.vx * COMET_BOUNCE; }
+      else if (c.x > W - WALL - c.r && c.vx > 0) { c.x = W - WALL - c.r; c.vx = -c.vx * COMET_BOUNCE; }
       c.tail.push({ x: c.x, y: c.y });
       if (c.tail.length > COMET_TAIL) c.tail.shift();
       // only the head kills
@@ -651,7 +674,13 @@
         addScore(1);
         if (orbital !== fromOrbital) return;
       }
-      if (c.y > H + 80 || c.x < -80 || c.x > W + 80) comets.splice(i, 1);
+      if (c.y > H + 80) comets.splice(i, 1);
+    }
+
+    // starfield drifts down; near layers faster (parallax)
+    for (const st of stars) {
+      st.y += STAR_SPEEDS[st.layer] * dt;
+      if (st.y > H + 4) { st.y = -4; st.x = Math.random() * W; }
     }
   }
 
@@ -1832,7 +1861,25 @@
   }
 
   // ---- Perihelion rendering ---------------------------------------------------
+  function drawStars() {
+    const t = performance.now() / 1000;
+    ctx.save();
+    ctx.fillStyle = "#dfe6ff";
+    for (const st of stars) {
+      const tw = 0.55 + 0.45 * Math.sin(t * (1.2 + st.layer * 0.6) + st.tw);
+      ctx.globalAlpha = (0.18 + st.layer * 0.16) * tw;
+      ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, TAU); ctx.fill();
+      // near stars streak a little, selling the motion
+      if (st.layer === 2) {
+        ctx.globalAlpha *= 0.5;
+        ctx.fillRect(st.x - 0.5, st.y - 7, 1, 7);
+      }
+    }
+    ctx.restore();
+  }
+
   function drawComets() {
+    drawStars();
     drawPlanets();
     const head = "#eef8ff";
     for (const c of comets) {

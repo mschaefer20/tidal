@@ -107,8 +107,7 @@
     10: { arp: [110.00, 116.54, 110.00, 103.83, 130.81, 110.00, 98.00, 116.54], roots: [55.00, 51.91, 49.00, 46.25], step: 170, type: "sawtooth", lp: 1200, gain: 0.11, bass: 0.30 }, // X — apocalyptic Am, descending bass (supernova)
     // Worlds beyond Origins reference tracks by id (ORBITALS[].track).
     11: { arp: [130.81, 185.00, 196.00, 261.63, 293.66, 261.63, 196.00, 185.00], roots: [65.41, 65.41, 92.50, 98.00], step: 260, type: "triangle", lp: 1200, gain: 0.10, bass: 0.22 }, // Anomalies I "Flux" — slow, breathing C lydian
-    12: { arp: [146.83, 174.61, 220.00, 293.66, 220.00, 174.61], roots: [73.42, 73.42, 87.31, 65.41], step: 300, type: "sine", lp: 1000, gain: 0.10, bass: 0.24 },                       // Anomalies II "Slack Water" — sparse, still Dm
-    13: { arp: [164.81, 196.00, 233.08, 246.94, 329.63, 246.94, 233.08, 196.00], roots: [82.41, 82.41, 77.78, 87.31], step: 190, type: "triangle", lp: 1500, gain: 0.10, bass: 0.24 }, // Anomalies III "Eddies" — swirling Em with chromatic pull
+    12: { arp: [164.81, 196.00, 233.08, 246.94, 329.63, 246.94, 233.08, 196.00], roots: [82.41, 82.41, 77.78, 87.31], step: 190, type: "triangle", lp: 1500, gain: 0.10, bass: 0.24 }, // Anomalies II "Eddies" — swirling Em with chromatic pull
   };
   function trk() { return TRACKS[currentTrack] || TRACKS[1]; }
 

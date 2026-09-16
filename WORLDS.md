@@ -2,7 +2,7 @@
 
 Status (2026-09-15): **design + working mock on branch `worlds`.** The world
 model is implemented in `tidal/game.js`, the title screen has a world picker,
-and Anomalies orbital I ("Flux") is playable as a PREVIEW. Nothing here has
+and Anomalies orbitals I ("Flux") and II ("Eddies") are playable as a PREVIEW. Nothing here has
 shipped. Companion docs: `V1.2-ORBITALS.md` (how VI–X were designed),
 `V3-ORBITALS-11-20.md` on branch `orbitals-11-20` (XI/XII, a possible source
 of Anomalies orbitals).
@@ -33,7 +33,7 @@ Everything about a run is scoped to the active world.
 | --- | --- | --- | --- |
 | `id` / `name` | storage id, display name | `origins` / ORIGINS | `anomalies` / ANOMALIES |
 | `tagline` | title-screen line under the picker | One button. Two gravities. | Gravity itself is unstable here. |
-| `orbitals` | ordered table of capability-flag entries (same `ORB()` flag system as before) | the ten (unchanged) | I only (mock) |
+| `orbitals` | ordered table of capability-flag entries (same `ORB()` flag system as before) | the ten (unchanged) | I–II (mock) |
 | `step` | points per orbital (thresholds are `step × (n−1)`) | 100 | **60** |
 | `physics` | world-wide multipliers: `gravity` (pendulum pull), `gap` (barrier gap width) | — | gravity 0.85, gap 1.12 |
 | `palette` | left/right planet + orb colors (2D canvas and WebGL) | pink / cyan | violet `#c77dff` / mint `#5cf2c0` |
@@ -100,7 +100,7 @@ gravity × (1 + FLUX_AMP · sin(2π · t / FLUX_PERIOD))
 | Tunable | Value | Note |
 | --- | --- | --- |
 | `FLUX_PERIOD` | 6.0 s | one full breath; ≈ 3 bars of track 11 (8 notes × 260 ms = 2.08 s/bar). Set to 6.24 to lock exactly to the music. |
-| `FLUX_AMP` | 0.35 | ±35 % at the extremes → 0.65–1.35× pull |
+| `FLUX_LOW` / `FLUX_HIGH` | 0.20 / 0.35 | asymmetric swing: 0.80× at low tide (floaty, never a crawl — user: "make the slowest not super slow"), 1.35× at high tide. Per-orbital `fluxLow`/`fluxHigh` override. |
 | `FLUX_RAMP` | 4.0 s | amplitude eases in so an orbital never opens mid-surge; resets on every orbital entry and continue |
 
 Read-out (both cues drawn in the world palette):
@@ -128,7 +128,7 @@ track 11, slow triangle-wave C lydian.
 Play it: `http://localhost:8123/tidal/?world=anomalies` (title picker also
 reaches it). `?probe` exposes `window.TidalProbe()` for headless tests.
 
-What the mock does NOT do yet:
+What the mocks do NOT do yet:
 
 - Flux only drives the 2D pendulum (`stepOrb`), which is also the 3D tunnel's
   horizontal physics. Binary wells (`GRAVITY3`) and the arena (`ARENA_G`)
@@ -144,38 +144,40 @@ as Origins I–V.
 | # | Name | Form | Adds | Notes |
 | --- | --- | --- | --- | --- |
 | I | Flux | 2D pendulum | the breath itself | BUILT (mock) |
-| II | Slack Water | 2D pendulum | the tide bottoms out: coast, brake with taps, coin bursts at each trough | BUILT (mock) — user chose 2D over a 3D "Undertow" |
-| III | Eddies | 2D pendulum | local tides: surge / void / invert discs scrolling with the field | BUILT (mock) |
-| IV | Magnetar or Riptide | 2D | charged gaps from `orbitals-11-20`, or binary wells whose sway breathes | Magnetar is built + playtested; Riptide needs `gravMult()` in `updateBinary` |
+| II | Eddies | 2D pendulum | local tides: surge / void / invert discs scrolling with the field | BUILT (mock) — user: "I like the eddies" |
+| III | Magnetar or Riptide | 2D | charged gaps from `orbitals-11-20`, or binary wells whose sway breathes | Magnetar is built + playtested; Riptide needs `gravMult()` in `updateBinary` |
+| IV | (open) | 2D | — | candidates below |
 | V | Slack Tide | arena | black-hole pull breathes; surges land at high tide, debris pauses at low | arena reads `gravMult()` |
 
-(3D is deliberately avoided in Anomalies for now, per the user. "Undertow" —
-tunnel speed breathing with the pull — stays on the shelf.)
+Constraints from playtesting so far: **no 3D in Anomalies** (user), and the
+weakest pull must never feel like a crawl (`FLUX_LOW` 0.20, `EDDY_VOID` 0.35).
 
-### Anomalies II — "Slack Water" (mock)
-
-Same breath, deeper wave. The pull swings `SLACK_MIN` 0.08 … `SLACK_MAX` 1.35
-and the wave is flattened (`SLACK_SHAPE` 0.6) so the extremes hold for a beat.
-At slack the orb **coasts**: a tap can't pull, it only sheds momentum, so
-rapid taps become a brake. Read-out: the wall glow drops to a quarter, the
-halo shrinks, and a "SLACK WATER" label fades in at the top. Once per trough
-`SLACK_COINS` coins fan into the row above the orb, centered on it, never
-inside a bar — the reward for riding the slack. Test: `?world=anomalies&orbital=2`.
-
-### Anomalies III — "Eddies" (mock)
+### Anomalies II — "Eddies" (mock)
 
 Local tides. Translucent discs (`EDDY_R_MIN`–`EDDY_R_MAX` px) spawn between
 barrier rows and scroll with the field, at most `EDDY_MAX` on screen. Inside:
-**surge** ×2 pull (gold), **void** ×0 (a dark hole), **invert** reverses the
-pull (the disc shows the planet colors swapped; the orb's color and the lit
-planet flip while inside). Spawn odds in `EDDY_TYPES`. The global breath runs
-underneath at `fluxAmp` 0.22. Test: `?world=anomalies&orbital=3`.
+**surge** ×2 pull (gold), **void** ×`EDDY_VOID` 0.35 (a dark hole — pull
+nearly gone, not dead), **invert** reverses the pull (the disc shows the planet
+colors swapped; the orb's color and the lit planet flip while inside). Spawn
+odds in `EDDY_TYPES`. The global breath runs underneath at a gentler swing
+(`fluxLow` 0.10 / `fluxHigh` 0.22). Test: `?world=anomalies&orbital=2`.
 
-Playtest question for III: an eddy crosses the orb's row in ~0.4–1.0 s at
-current scroll speeds, so the local tide is a jolt rather than a zone. If it
-reads as random, options are taller (elliptical) discs, a slower relative
-scroll for eddies, or applying the eddy once the orb is inside its x-span and
-the disc is within one row.
+Playtest question: an eddy crosses the orb's row in ~0.4–1.0 s at current
+scroll speeds, so the local tide is a jolt rather than a zone. If it reads as
+random, options are taller (elliptical) discs, a slower relative scroll for
+eddies, or applying the eddy once the orb is inside its x-span and the disc is
+within one row.
+
+### Shelved: "Slack Water" (built 2026-09-15, removed the same day)
+
+The tide bottomed out near zero for a beat: the orb coasted, taps only shed
+momentum (a brake), walls went dark, a label faded in, and coins burst into
+reach at each trough. User: "I don't really get the slackwater." The idea
+(a deliberately powerless beat you ride rather than fight) may return as an
+arena finale flavor — a black hole whose pull pauses — but not as a 2D
+pendulum orbital. Code is in git history (commit "Anomalies II Slack Water +
+III Eddies"). Also shelved: "Undertow" (3D tunnel whose speed breathes) — no
+3D in Anomalies for now.
 
 Thresholds at 60: 60/120/180/240 — a full Anomalies run is ~300 points, so
 its finale is reachable by far more players than Origins X.

@@ -189,11 +189,9 @@
   // bend toward the active planet at COMET_BEND — flipping to swing one way
   // pulls the incoming comets the same way. Density ramps with difficulty().
   const COMET_R = 15;                // head radius (kill radius vs the orb)
-  const ICE_COL = "#b6bcc7";         // ice head — comet-grey
-  const ICE_TAIL = "#8b929e";        // ice tail (outer) / telegraph streak
-  const ICE_TAIL_CORE = "#cfd4dc";   // ice tail (inner bright streak)
-  const ICE_RIM = "#eef1f5";         // lit leading edge of the head
-  const ICE_CRATER = "#7f8791";      // shadowed patch on the head
+  const ICE_COL = "#9ea4ae";         // ice head — mid comet-grey, flat
+  const ICE_TAIL = "#737a85";        // ice tail / telegraph streak — one tone, dimmer
+  const ICE_GLOW = "#b8bec8";        // faint glow around the head
   const COMET_SPEED_START = 230;     // px/s at the start of the ramp
   const COMET_SPEED_MAX = 400;
   const COMET_ANGLE = 0.45;          // rad from vertical: max entry tilt
@@ -2180,7 +2178,7 @@
       }
       if (c.coin && !c.coin.taken) { const p = cometCoinPos(c); glowCircle(p.x, p.y, 7, "#ffd84d"); }
       if (rogue || pusher) glowCircle(c.x, c.y, c.r, head, true);
-      else drawIceHead(c.x, c.y, c.r, c.vx, c.vy);
+      else drawIceHead(c.x, c.y, c.r);
       if (rogue) {   // a near-black core: mass, not light
         ctx.fillStyle = ROGUE_CORE;
         ctx.beginPath(); ctx.arc(c.x, c.y, c.r * 0.62, 0, TAU); ctx.fill();
@@ -2203,42 +2201,25 @@
     glowCircle(orb.x, orb.y, ORB_R, orbColor(), true);
   }
 
-  // Ice comet tail: a wide dim grey streak with a thin bright core down the
-  // middle, both thinning and fading toward the end (curves with the bend).
+  // Ice comet tail: one dim grey streak, thinning and fading toward its end
+  // (curves with the bend). Minimal on purpose.
   function drawIceTail(tail, r) {
     for (let i = 1; i < tail.length; i++) {
       const a = i / tail.length;
       ctx.save();
       ctx.lineCap = "round";
-      ctx.globalAlpha = a * 0.45;
-      ctx.strokeStyle = ICE_TAIL; ctx.lineWidth = 1 + a * r * 1.15;
-      ctx.beginPath(); ctx.moveTo(tail[i - 1].x, tail[i - 1].y); ctx.lineTo(tail[i].x, tail[i].y); ctx.stroke();
-      ctx.globalAlpha = a * 0.7;
-      ctx.strokeStyle = ICE_TAIL_CORE; ctx.lineWidth = Math.max(0.8, a * r * 0.35);
+      ctx.globalAlpha = a * 0.5;
+      ctx.strokeStyle = ICE_TAIL; ctx.lineWidth = 1 + a * r * 1.0;
       ctx.beginPath(); ctx.moveTo(tail[i - 1].x, tail[i - 1].y); ctx.lineTo(tail[i].x, tail[i].y); ctx.stroke();
       ctx.restore();
     }
   }
-  // Ice comet head: a grey body with a soft glow, a lit rim on the leading
-  // edge (the side facing its motion) and one shadowed patch — a rock, not a
-  // light bulb. Still one shape; reads at a glance.
-  function drawIceHead(x, y, r, vx, vy) {
-    const l = Math.hypot(vx, vy) || 1;
-    const ux = vx / l, uy = vy / l;                 // direction of motion
+  // Ice comet head: a flat grey disc with a faint glow. Nothing else.
+  function drawIceHead(x, y, r) {
     ctx.save();
     ctx.fillStyle = ICE_COL;
-    ctx.shadowBlur = 14; ctx.shadowColor = ICE_TAIL_CORE;
+    ctx.shadowBlur = 10; ctx.shadowColor = ICE_GLOW;
     ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
-    ctx.shadowBlur = 0;
-    // shadowed patch, offset away from the motion
-    ctx.globalAlpha = 0.75;
-    ctx.fillStyle = ICE_CRATER;
-    ctx.beginPath(); ctx.arc(x - ux * r * 0.32 - uy * r * 0.18, y - uy * r * 0.32 + ux * r * 0.18, r * 0.3, 0, TAU); ctx.fill();
-    // lit leading rim
-    ctx.globalAlpha = 0.85;
-    ctx.strokeStyle = ICE_RIM; ctx.lineWidth = Math.max(1.2, r * 0.14); ctx.lineCap = "round";
-    const a0 = Math.atan2(uy, ux);
-    ctx.beginPath(); ctx.arc(x, y, r * 0.86, a0 - 0.9, a0 + 0.9); ctx.stroke();
     ctx.restore();
   }
 
@@ -2301,10 +2282,7 @@
       glowCircle(ex, ey, d.size, head, true);
     } else {
       drawIceTail(d.tail, d.size);
-      // motion direction for the lit rim: from the last two tail samples (falls inward)
-      const t = d.tail, n = t.length;
-      const vx = n > 1 ? t[n - 1].x - t[n - 2].x : ARENA.x - ex, vy = n > 1 ? t[n - 1].y - t[n - 2].y : ARENA.y - ey;
-      drawIceHead(ex, ey, d.size, vx, vy);
+      drawIceHead(ex, ey, d.size);
     }
     if (rogue) { ctx.fillStyle = ROGUE_CORE; ctx.beginPath(); ctx.arc(ex, ey, d.size * 0.62, 0, TAU); ctx.fill(); }
     else if (pusher) {

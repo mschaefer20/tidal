@@ -189,6 +189,8 @@
   // bend toward the active planet at COMET_BEND — flipping to swing one way
   // pulls the incoming comets the same way. Density ramps with difficulty().
   const COMET_R = 15;                // head radius (kill radius vs the orb)
+  const ICE_COL = "#d3d7de";         // ice head — light comet-grey (was near-white)
+  const ICE_TAIL = "#aab0bb";        // ice tail / telegraph streak — a shade dimmer
   const COMET_SPEED_START = 230;     // px/s at the start of the ramp
   const COMET_SPEED_MAX = 400;
   const COMET_ANGLE = 0.45;          // rad from vertical: max entry tilt
@@ -2131,8 +2133,8 @@
     drawPlanets();
     for (const c of comets) {
       const rogue = c.kind === "rogue", pusher = c.kind === "pusher";
-      const head = rogue ? ROGUE_COL : pusher ? PUSH_COL : "#eef8ff";
-      const tailCol = rogue ? ROGUE_TAIL : pusher ? PUSH_TAIL : "#eef8ff";
+      const head = rogue ? ROGUE_COL : pusher ? PUSH_COL : ICE_COL;
+      const tailCol = rogue ? ROGUE_TAIL : pusher ? PUSH_TAIL : ICE_TAIL;
       if (c.warn > 0) {
         // telegraph: the entry streak brightens as release nears; the head
         // peeks over the top edge and grows
@@ -2225,7 +2227,7 @@
   // then a tailed head (with its well if it's a rogue / pusher).
   function drawArenaComet(d, ex, ey) {
     const rogue = d.kind === "rogue", pusher = d.kind === "pusher";
-    const head = rogue ? ROGUE_COL : pusher ? PUSH_COL : "#eef8ff";
+    const head = rogue ? ROGUE_COL : pusher ? PUSH_COL : ICE_COL;
     if (d.warn > 0) {
       const p = 0.5 + 0.5 * Math.sin(d.warn * 22);
       ctx.save();
@@ -2240,7 +2242,7 @@
       const a = i / d.tail.length;
       ctx.save();
       ctx.globalAlpha = a * (rogue || pusher ? 0.3 : 0.5);
-      ctx.strokeStyle = rogue ? ROGUE_TAIL : pusher ? PUSH_TAIL : head;
+      ctx.strokeStyle = rogue ? ROGUE_TAIL : pusher ? PUSH_TAIL : ICE_TAIL;
       ctx.lineWidth = 1 + a * d.size * 0.9; ctx.lineCap = "round";
       ctx.beginPath(); ctx.moveTo(d.tail[i - 1].x, d.tail[i - 1].y); ctx.lineTo(d.tail[i].x, d.tail[i].y); ctx.stroke();
       ctx.restore();

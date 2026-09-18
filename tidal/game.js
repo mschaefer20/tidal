@@ -147,13 +147,14 @@
   // the orb. Only the head kills; the tail is light, and where a coin rides.
   //   comets: comet field replaces the barrier field (COMET_* tunables)
   //   sides: fraction of comets that enter from a side edge (COMET_SIDE_*)
+  //   volley: chance a side comet brings a mirrored partner from the other edge (VOLLEY_*)
   //   coinRain: [min,max] s between loose coins drifting down the open sky
   //   rogue: fraction of comets that are ROGUES — heavy, slow, with a gravity well (ROGUE_*)
   //   pusher: fraction of comets that are PUSHERS — wells that REPEL (PUSH_*)
   //   cometArena: the black-hole arena with comets (ice/rogue/pusher) for debris (PERI_*)
   const PERIHELION = [
     { n: 1, dim: "2d", comets: true, track: 16 },                   // Shower — dense, telegraphed, bending comets
-    { n: 2, dim: "2d", comets: true, sides: 0.5, coinRain: [3.5, 6.5], track: 17 }, // Crossfire — side entries cross above you and come down; loose coins drift by
+    { n: 2, dim: "2d", comets: true, sides: 0.5, volley: 0.3, coinRain: [3.5, 6.5], track: 17 }, // Crossfire — side entries cross above you and come down; volleys from both edges at once; loose coins drift by
     { n: 3, dim: "2d", comets: true, sides: 0.5, rogue: 0.33, coinRain: [4.0, 7.0], track: 18 }, // Rogues — heavy comets whose well pulls you, the sky, and the coins
     { n: 4, dim: "2d", comets: true, sides: 0.5, rogue: 0.22, pusher: 0.22, coinRain: [4.0, 7.0], track: 19 }, // Pushers — repelling wells beside the pulling ones: push-pull corridors
     { n: 5, dim: "2d", arena: true, scoreByDebris: true, cometArena: true, track: 20 }, // Perihelion — comets rain into the black hole; your pull steers the ice; wells work your radius
@@ -212,6 +213,11 @@
   const COMET_SIDE_Y = [0.05, 0.33];         // entry height, fraction of H
   const COMET_SIDE_ANGLE = [0.50, 0.75];     // rad below horizontal (29°–43°) — shallowest steepened per playtest
   const COIN_RAIN_SPEED = 150;               // px/s a loose coin drifts down (slower than any comet)
+  // Volley: both edges fire at once. A side comet's mirrored partner enters
+  // from the other edge at the same tilt and (almost) the same height, both
+  // telegraphed together, so the two streaks cross above the orb — and your
+  // pull decides which one drops onto you and which lifts to the far wall.
+  const VOLLEY_JITTER = 30;                  // px of height offset between the pair (never a perfect mirror)
   // Rogues (III): heavy comets with a gravity WELL. Inside the well a rogue
   // pulls the orb toward it (strongest at the surface, zero at the well's
   // edge) — so your pendulum bends toward the comet as it passes and you tap
@@ -706,18 +712,22 @@
     const rogue = kind === "rogue", pusher = kind === "pusher";
     const r = rogue ? ROGUE_R : pusher ? PUSH_R : COMET_R;
     const sp = cometSpeed() * (rogue ? ROGUE_SPEED : pusher ? PUSH_SPEED : 1);
-    const coin = kind === "ice" && Math.random() < COMET_COIN_ODDS ? { taken: false } : null;   // a rogue's coins orbit it; a pusher has none
-    const base = { r, kind, bend: rogue ? ROGUE_BEND : pusher ? PUSH_BEND : 1, warn: COMET_WARN, tail: [], passed: false, coin };
+    // a rogue's coins orbit it; a pusher has none — rolled per comet, so a volley pair can differ
+    const rollCoin = () => kind === "ice" && Math.random() < COMET_COIN_ODDS ? { taken: false } : null;
+    const base = () => ({ r, kind, bend: rogue ? ROGUE_BEND : pusher ? PUSH_BEND : 1, warn: COMET_WARN, tail: [], passed: false, coin: rollCoin() });
     if (ORB().sides && Math.random() < ORB().sides) {
       // Crossfire: in from a side edge, high up, angled down across the field
       const side = Math.random() < 0.5 ? -1 : 1;          // -1 = enters from the left
       const a = randRange(COMET_SIDE_ANGLE[0], COMET_SIDE_ANGLE[1]);
-      comets.push(Object.assign(base, {
-        x: side < 0 ? -r - 4 : W + r + 4,
-        y: randRange(H * COMET_SIDE_Y[0], H * COMET_SIDE_Y[1]),
-        vx: -side * Math.cos(a) * sp, vy: Math.sin(a) * sp,
-        entry: side < 0 ? "left" : "right",
-      }));
+      const y = randRange(H * COMET_SIDE_Y[0], H * COMET_SIDE_Y[1]);
+      comets.push(sideComet(base(), side, y, a, sp));
+      // Volley: the mirrored partner from the other edge (ice only — two
+      // wells crossing would wall the field). A pair counts as ONE against
+      // the on-screen cap, or the partner would almost never get through.
+      if (ORB().volley && kind === "ice" && comets.length <= cometMax() && Math.random() < ORB().volley) {
+        const y2 = Math.max(H * COMET_SIDE_Y[0], Math.min(H * COMET_SIDE_Y[1], y + randRange(-VOLLEY_JITTER, VOLLEY_JITTER)));
+        comets.push(sideComet(base(), -side, y2, a, sp));
+      }
       return;
     }
     const x = randRange(WALL + 24, W - WALL - 24);
@@ -725,11 +735,20 @@
     // the tilt — the straight path always crosses the row inside the walls
     const tx = randRange(WALL + 40, W - WALL - 40);
     const a = Math.max(-COMET_ANGLE, Math.min(COMET_ANGLE, Math.atan2(tx - x, ORB_Y + r + 4)));
-    comets.push(Object.assign(base, {
+    comets.push(Object.assign(base(), {
       x, y: -r - 4,
       vx: Math.sin(a) * sp, vy: Math.cos(a) * sp,
       entry: "top",
     }));
+  }
+  // A side-entry comet: from the left (side -1) or right (+1) edge at height
+  // y, tilted a rad below horizontal, moving at sp px/s across the field.
+  function sideComet(c, side, y, a, sp) {
+    return Object.assign(c, {
+      x: side < 0 ? -c.r - 4 : W + c.r + 4, y,
+      vx: -side * Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      entry: side < 0 ? "left" : "right",
+    });
   }
   // A rogue's orbiting coins are bonuses hosted by the comet; they ride with
   // it and vanish with it. Created when the rogue is released from its warn.

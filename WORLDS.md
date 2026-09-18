@@ -260,7 +260,17 @@ pull toward it and it drops onto you, pull away and it lifts and glances off
 the far planet (`COMET_BOUNCE`), so ricochets appear from the wall rule
 already in place. A few loose coins drift down the open sky on their own
 (`coinRain` [3.5, 6.5] s apart, `COIN_RAIN_SPEED` 150 px/s) — a low-frequency
-reward that isn't attached to a hazard. Track 17. Test: `?world=perihelion&orbital=2`.
+reward that isn't attached to a hazard.
+
+**Volleys** (added 2026-09-17): `volley` 0.3 — three side entries in ten
+bring a mirrored partner from the *other* edge at the same tilt and nearly
+the same height (`VOLLEY_JITTER` ±30 px, never a perfect mirror), both
+telegraphed together, so two streaks cross above the orb. Ice only, and a
+pair counts as one against the on-screen cap (else the partner is refused
+whenever two comets are already up, which is most of the time). The point: with one comet you dodge; with a
+crossing pair your pull chooses — lean toward one and it drops onto you while
+the other lifts and glances off the far planet. Track 17.
+Test: `?world=perihelion&orbital=2`.
 
 ### Perihelion III — "Rogues" (mock)
 

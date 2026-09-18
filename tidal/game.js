@@ -600,14 +600,34 @@
   // on, Start From lists EVERY orbital of the current world; a run begun
   // beyond your real progress is unranked (dev mode: no best, no unlock, no
   // leaderboard). Persists until toggled off. Shows a DEV tag in the picker.
-  const DEV_UNLOCK_KEY = "tidal-dev-unlock";
-  let devUnlock = localStorage.getItem(DEV_UNLOCK_KEY) === "1";
+  const DEV_UNLOCK_KEY = "tidal-dev-unlock";   // "0" off · "1" dev · "2" footage
+  let devStage = Math.max(0, Math.min(2, Number(localStorage.getItem(DEV_UNLOCK_KEY)) || 0));
+  let devUnlock = devStage >= 1;
+  // FOOTAGE stage (dev unlock, camera-ready): for recording real play of any
+  // orbital. The BEST shown during the run is lifted to a plausible figure
+  // for the orbital you started at (a player standing on orbital IV has a
+  // best in the 300s, not 40), and beating it reads as "New Best!" on the
+  // death screen. Session-only: real best / progress / leaderboard are
+  // touched exactly as a normal (ranked or unranked) run would touch them.
+  let footage = devStage === 2;
+  let footageBest = 0;                          // the lifted BEST for this run (0 = none)
   let logoTaps = 0, logoTapAt = 0;
-  function toggleDevUnlock() {
-    devUnlock = !devUnlock;
-    localStorage.setItem(DEV_UNLOCK_KEY, devUnlock ? "1" : "0");
-    sfx(devUnlock ? "shift" : "crash"); buzz("medium");
+  function toggleDevUnlock() {                  // 5 logo taps cycle: off → DEV → FOOTAGE → off
+    devStage = (devStage + 1) % 3;
+    devUnlock = devStage >= 1; footage = devStage === 2;
+    localStorage.setItem(DEV_UNLOCK_KEY, String(devStage));
+    sfx(devStage ? "shift" : "crash"); buzz("medium");
     refreshWorldUI(); refreshCoinsUI();
+  }
+  // A plausible best for someone who has just reached orbital n: inside that
+  // orbital's band, fixed per world + orbital so retakes match.
+  function plausibleBest(n) {
+    return orbitalThreshold(n) + 15 + (n * 37 + world.id.length * 11) % 61;
+  }
+  function shownBest() { return footage ? Math.max(best, footageBest) : best; }
+  function applyFootageBest(n) {
+    footageBest = footage ? plausibleBest(n) : 0;
+    bestEl.textContent = shownBest();
   }
   function loadUnlocked() { return Math.max(1, Math.min(ORBITALS.length, Number(localStorage.getItem(world.unlockKey) || 1))); }
   let unlocked = loadUnlocked();
@@ -639,7 +659,7 @@
     setText("world-name", world.name);
     setText("title-tagline", world.tagline);
     const tag = document.getElementById("world-tag");
-    if (tag) { tag.hidden = !(world.mock || devUnlock); tag.textContent = devUnlock ? "DEV" : "PREVIEW"; }
+    if (tag) { tag.hidden = !(world.mock || devUnlock); tag.textContent = footage ? "FOOTAGE" : devUnlock ? "DEV" : "PREVIEW"; }
     const n = ORBITALS.length;
     setText("world-sub", best > 0
       ? `Best ${best} · ${ORBITAL_LABEL[unlocked] || "ORBITAL " + unlocked} reached`
@@ -2883,6 +2903,7 @@
 
   function start() {
     reset();
+    applyFootageBest(1);
     resume();
     if (DEV_START_ORBITAL >= 2) { devMode = true; enterOrbital(DEV_START_ORBITAL); }   // dev: ?orbital=N (unranked; never unlocks progression)
     if (params.has("immortal")) { devMode = true; invuln = 1e9; }   // dev: never die (headless mechanic tests)
@@ -2942,9 +2963,13 @@
     if (newBest) {
       best = score;
       localStorage.setItem(world.bestKey, String(best));
-      bestEl.textContent = best;
     }
-    setText("continue-score", newBest ? `Score ${score} — New Best!` : `Score ${score} · Best ${best}`);
+    // Footage: the lifted best is the one on screen; beating it reads as a
+    // new best on camera (kept for the session only, never persisted).
+    const newShown = footage && score > shownBest();
+    if (newShown) footageBest = score;
+    bestEl.textContent = shownBest();
+    setText("continue-score", newBest || newShown ? `Score ${score} — New Best!` : `Score ${score} · Best ${shownBest()}`);
     // Players who haven't reached orbital 2 yet get a nudge that the game
     // transforms at 100 — the reveal is the hook, so hint, don't spoil.
     const tease = document.getElementById("continue-tease");
@@ -3191,6 +3216,7 @@
     runStartOrbital = n;
     score = orbitalThreshold(n);            // your journey resumes at this orbital's score
     scoreEl.textContent = score;
+    applyFootageBest(n);
     resume();
     enterOrbital(n);
   }

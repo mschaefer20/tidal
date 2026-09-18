@@ -119,6 +119,13 @@ Keyboard (browser only): Space/Enter flip, Esc/P pause.
   How to Play copy, sw bump, Codemagic build.
 
 ## Known issues / TODO
+- **Footage stage of the dev unlock (2026-09-17):** the 5-logo-tap toggle now
+  cycles off → DEV → FOOTAGE → off (`tidal-dev-unlock` = "0"/"1"/"2"). FOOTAGE
+  is DEV plus a camera-ready BEST: any run's shown best is lifted to a
+  plausible figure for the orbital it starts at (`plausibleBest(n)`), and
+  beating it reads "New Best!" on the death screen. Session-only; real best,
+  progress and leaderboard behave exactly as in DEV. For recording real play
+  of any orbital in any world.
 - ✅ Music-on-speaker FIXED (arp up an octave, mid harmonic carries the bass) —
   verify on the device speaker in the final build.
 - ✅ v1.1 shipped to App Review (2026-07-19). When it's approved: verify the

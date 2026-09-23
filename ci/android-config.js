@@ -28,14 +28,17 @@ const VARIABLES = "android/variables.gradle";
 const ROOT_GRADLE = "android/build.gradle";
 const WRAPPER = "android/gradle/wrapper/gradle-wrapper.properties";
 
-/* Google Play requires new uploads to target Android 15 (API 35) since
-   Aug 2026 ("Target SDK of artifact is too low"). The Capacitor 6 template
-   pinned SDK 34 with AGP 8.2.1 / Gradle 8.2.1, so these were bumped here;
-   the Capacitor 7 template (SDK 35, AGP 8.7.2, Gradle 8.11.1, Java 21)
-   already matches, and the patch is kept as a floor so a template
-   regression can't silently drop below what Play accepts. */
-const TARGET_SDK = 35;
-const AGP_VERSION = "8.7.3";
+/* Google Play moves its target-SDK floor every August ("Target SDK of
+   artifact is too low"): API 35 from Aug 2025, API 36 (Android 16) from
+   Aug 2026 — which is where this sits now. The Capacitor 7 template ships
+   SDK 35 / AGP 8.7.2 / Gradle 8.11.1 (Java 21), so we raise SDK to 36 and
+   AGP to a line that officially supports compileSdk 36 (8.10.x; needs
+   Gradle 8.11.1+). Next August, expect API 37 and bump all three together.
+   Edge-to-edge: targeting 35+ already enforces it on Android 15+ and the
+   shipped builds have run that way (dark body, CSS safe-area padding), so
+   adjustMarginsForEdgeToEdge stays at Capacitor's default. */
+const TARGET_SDK = 36;
+const AGP_VERSION = "8.10.1";
 const GRADLE_VERSION = "8.11.1";
 
 function patchToolchain() {

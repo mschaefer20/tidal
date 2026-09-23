@@ -70,6 +70,12 @@ stores can't drift. The old `ios-tidal` workflow remains for iOS-only builds.
 4. The `.apk` artifact can be sideloaded on any Android device for testing
    (enable "install unknown apps").
 
+NOTE (2026-09-23): Play's target-SDK floor is now **API 36** (Android 16);
+build 10 (target 35) was refused with "Target SDK of artifact is too low".
+`ci/android-config.js` raises compile/target SDK to 36 with AGP 8.10.1.
+The floor moves every August — bump `TARGET_SDK` (and AGP/Gradle if the
+new SDK needs them) when the next rejection arrives.
+
 NOTE (2026-09-23): Play now rejects any `.aab` built with Play Billing
 Library < 8.0 ("must update to at least version 8.0.0"). Billing comes in
 through RevenueCat: `@revenuecat/purchases-capacitor` 9.x bundled

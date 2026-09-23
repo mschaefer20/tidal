@@ -142,7 +142,7 @@ workflows:
       node: 20
       xcode: latest
       cocoapods: default
-      java: 17
+      java: 21   # Capacitor 7's Android project compiles at Java 21
     scripts:
       - name: Install npm dependencies
         # Retried: sharp (via @capacitor/assets) downloads a native binary

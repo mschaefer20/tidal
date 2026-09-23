@@ -70,6 +70,16 @@ stores can't drift. The old `ios-tidal` workflow remains for iOS-only builds.
 4. The `.apk` artifact can be sideloaded on any Android device for testing
    (enable "install unknown apps").
 
+NOTE (2026-09-23): Play now rejects any `.aab` built with Play Billing
+Library < 8.0 ("must update to at least version 8.0.0"). Billing comes in
+through RevenueCat: `@revenuecat/purchases-capacitor` 9.x bundled
+purchases-android 8.x (Billing 7.1.1); 11.x bundles hybrid-common 17.x →
+purchases-android 9.x → Billing 8.0. 11.x needs Capacitor 7, and Capacitor
+7's Android project compiles at Java 21, so the `release-tidal` workflow
+runs on `java: 21`. If Play raises the bar again, bump the RevenueCat
+plugin (and Capacitor if its peer range moved) — don't force the billing
+artifact under an older RevenueCat SDK; the two must match.
+
 NOTE: Play rejects an `.aab` whose `versionCode` isn't higher than every
 previously uploaded one. Codemagic's `$BUILD_NUMBER` only counts up, so this
 only bites if the publisher ever uploads a bundle from somewhere else with a

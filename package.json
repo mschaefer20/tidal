@@ -11,18 +11,18 @@
     "assets": "capacitor-assets generate --ios"
   },
   "dependencies": {
-    "@capacitor/core": "^6.1.2",
-    "@capacitor/ios": "^6.1.2",
-    "@capacitor/android": "^6.1.2",
-    "@capacitor/haptics": "^6.0.2",
-    "@capacitor/splash-screen": "^6.0.3",
-    "@capacitor/status-bar": "^6.0.2",
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/haptics": "^7.0.5",
+    "@capacitor/ios": "^7.6.9",
+    "@capacitor/splash-screen": "^7.0.5",
+    "@capacitor/status-bar": "^7.0.6",
     "@openforge/capacitor-game-connect": "5.0.2",
-    "@revenuecat/purchases-capacitor": "^9.2.2"
+    "@revenuecat/purchases-capacitor": "^11.3.2"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.1.2",
     "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.6.9",
     "http-server": "^14.1.1",
     "xcode": "^3.0.1"
   },

@@ -29,10 +29,11 @@ const ROOT_GRADLE = "android/build.gradle";
 const WRAPPER = "android/gradle/wrapper/gradle-wrapper.properties";
 
 /* Google Play requires new uploads to target Android 15 (API 35) since
-   Aug 2026 ("Target SDK of artifact is too low"), but the Capacitor 6
-   template pins SDK 34 with AGP 8.2.1 / Gradle 8.2.1 — a toolchain too old
-   to compile against SDK 35. Bump all three together (AGP 8.7.x needs
-   Gradle 8.9+; both run on the CI's Java 17). */
+   Aug 2026 ("Target SDK of artifact is too low"). The Capacitor 6 template
+   pinned SDK 34 with AGP 8.2.1 / Gradle 8.2.1, so these were bumped here;
+   the Capacitor 7 template (SDK 35, AGP 8.7.2, Gradle 8.11.1, Java 21)
+   already matches, and the patch is kept as a floor so a template
+   regression can't silently drop below what Play accepts. */
 const TARGET_SDK = 35;
 const AGP_VERSION = "8.7.3";
 const GRADLE_VERSION = "8.11.1";
